@@ -4,7 +4,7 @@ description: |
   On the eve of the Grand Départ of the 2021 Tour de France, we'll use animation to quickly draw some insights from the race's history.
 author:
 date: 06-25-2021
-base_url: https://odaniel1.github.io/posts/2021-06-25-tdf-shape-21
+base_url: https://odaniel1.github.io/InfrequentlyFrequentist/posts/2021-06-25-tdf-shape-21
 preview: img/tdf_shape_1915.gif
 output:
   distill::distill_article:
