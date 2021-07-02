@@ -1,0 +1,221 @@
+---
+title: "The Changing Shape of the Tour de France"
+description: |
+  On the eve of the Grand Départ of the 2021 Tour de France, we'll use animation to quickly draw some insights from the race's history.
+author:
+date: 06-25-2021
+base_url: https://odaniel1.github.io/posts/2021-06-21-the-changing-shape-of-the-tour-de-france
+preview: img/tdf_shape_1915.gif
+output:
+  distill::distill_article:
+    toc: true
+    toc_depth: 2
+  self_contained: false
+categories:
+  - Visualisation
+  - Cycling
+---
+
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r  stage-animation, echo=FALSE, layout='l-body', preview = TRUE}
+knitr::include_graphics('img/tdf_shape.gif')
+```
+<aside>
+Tour de France stage Start/Finishes, 1903-2021.
+</aside>
+
+Even if you've never tuned in to watch a stage of the Tour de France, likely you're familiar with the symbolic Yellow Jersey, aware of the super-human strength required to cycle thousands of kilometers over the course of a month, and the unfortunate lengths people will go to to acquire that strength.
+
+Whilst these symbols have been a part of the race since the early days, the route over which the drama plays out is ever changing. I created the animation above to get a better understanding of the *shape* of the Tour de France.
+
+<aside>The Yellow Jersey was added in 1919, but cheating was an issue from the second edition: the four top placed riders were all later disqualified.</aside>
+
+In the sections below I'll summarise what I like about the visualisation and what I think could be improved.
+
+
+## Maillot Jaune
+
+*The Maillot Jaune, Yellow Jersey, is famously worn by the rider in the lead of the race at the start of each stage, and finally awarded to the overall fastest rider when the race concludes in Paris.*
+
+The highlight of the visualisation for me is that it provides a compelling example of the benefits of animation for data story telling: enabling me to draw insights about the race that I'd have struggled to do from tables and static maps alone.
+
+Here's a few points that I found interesting.
+
+#### The early editions of the Tour had very few stages
+
+The first and second editions of the Tour comprised just 6 stages, compared to today's 21. Further digging into the data indicates the stage distances were however significantly longer than modern editions.
+
+<aside> The longest stage in the 1903 Tour spanned 471km, compared to a maximum of 250km in 2021.</aside>
+
+#### A tour of the perimeter?
+
+The Tour used to be largely about traversing the outer regions of France: between 1905 and 1938 the only detour away from the boarders seems to be the requisite annual visit to Paris.
+
+Variation was guaranteed for the riders every few years though, when the race organisers would change their preference for a clockwise or anti-clockwise route.
+
+#### The Missing Years
+
+The lack of animation in the periods 1915-1918 and 1940-46 are a reminder of the impact that the First and Second World Wars had on the routines and attractions that we take for granted.
+
+Further reading led me to the interesting fact that a 1940 Tour was planned, with the intent that riders would be drafted from soldiers stationed in France.
+
+<aside>There's a lot more information on the Wikipedia page [Tour de France during World War  II](https://en.wikipedia.org/wiki/Tour_de_France_during_World_War_II).</aside>
+
+#### Late to the Party
+
+Even into the 1990s its possible to pick out by eye some *département* that were yet to host the start or finish of a Tour stage. Hosting a tour stage [costs](https://inrng.com/2013/10/tour-de-france-route-selection-cost/) and it could well be that these areas of the country had different ideas on how local taxes should be spent.
+
+Pierre Breteau created an app for [Le Monde](https://www.lemonde.fr/les-decodeurs/article/2017/06/29/combien-de-fois-le-tour-de-france-a-t-il-traverse-votre-departement_5153251_4355770.html) that allows you to explore the frequency that the Tour has passed through each department. With the exception of Corsica (that was finally visited in 2013) and overseas territories, his data indicates that the final department to be visited was Indre in 1992.
+
+## Lanterne Rouge
+
+*The Lanterne Rouge, Red Lantern, is the dubious award given to the last placed rider in the Tour. Somewhat ironically its a title riders fight for as it comes with an offer to ride (and hence appearance fees) in the [post-Tour Criterium races](https://inrng.com/2013/07/post-tour-de-france-criteriums/).*
+
+The animation is far from perfect, and could do with some tweaks and improvements - some of which I've listed below. Maybe I'll get around to improving these ahead of [Copenhagen 2022](https://www.letour.fr/en/the-race/grands-departs/grand-depart-2022)!
+
+#### Straight Lines, and Pedalo Races
+
+Evident from the very first frame of the animation is the simplification to straight line paths between stage start and end points. This is particularly stark when the route follows the coast, occasionally suggesting that the riders took to the water to complete the stage.
+
+A search for Tour de France shapefiles suggests that these don't exist for public consumption, but detailed [*road books*](https://www.letour.fr/en/stage-1) are published for recent editions of the race - so in theory perhaps more accurate paths could be traced from this data.
+
+#### Tour de... Belgique?
+
+Whilst it took until 1992 for the Tour to visit every mainland department, the race first left France in 1947 with detours to both Brussels, and Luxembourg City.
+
+Since then the tour has made regular detours to nearby countries: for now I've removed these overseas excursions for want of a suitable way to incorporate them into the visualisation - but this feels like an easy fix for the future.
+
+<aside>
+[5 of the last 10](https://en.wikipedia.org/wiki/List_of_Tour_de_France_Grands_D%C3%A9parts#Host_cities) *Grand Departs* have taken place elsewhere in Europe.
+</aside>
+
+
+
+#### Implausible Locations
+
+I've used geocoding to infer longitude/latitude coordinates from the start/finish location names, using the R `tidygeocoder` package. This isn't always accurate, returning for instance [Cherbourg, Australia](https://www.google.com/maps/place/Cherbourg+QLD+4605,+Australia/@-26.2875961,151.8626248,12z/data=!3m1!4b1!4m5!3m4!1s0x6b951b2d4eda0fe7:0x400eef17f20e720!8m2!3d-26.290015!4d151.9538432) instead of  [Cherbourg, France](https://www.google.com/maps/place/Cherbourg-Octeville,+Cherbourg-en-Cotentin,+France/@49.6414807,-1.6683049,13z/data=!3m1!4b1!4m5!3m4!1s0x480c970b9d33188d:0x40c14484fb97e90!8m2!3d49.6337308!4d-1.622137), or suggesting the 2010 Tour started at [Rue de Rotterdam, Tours](https://www.google.com/maps/place/47%C2%B025'23.2%22N+0%C2%B041'14.2%22E/@47.4226517,0.6852749,16.46z/data=!4m5!3m4!1s0x0:0x0!8m2!3d47.42311!4d0.6872706) rather than Rotterdam in the Netherlands.
+
+This leads to some pretty obvious errors in the animation, with implausible distances covered in a stage. An immediate data quality check that could be built in is to calculate the straight line distance between start/end points of a stage and flag if this is greater than the stage distance.
+
+## R Code
+
+```{r, echo = FALSE}
+# CODE BLOCK BELOW NOT RUN
+# To regenerate plot, run from within an active R session, not  by kniting to Markdown
+```
+
+```{r create-animation, eval = FALSE, echo = TRUE, code_folding=TRUE}
+library(infreqthemes)
+library(tidyverse)
+library(janitor)
+library(gganimate)
+library(tdfData) # install.github("odaniel1/tdfData")
+
+## ---- prepare stage data --------------------------------------------------------------
+
+# TdF stage data was scraped from Wikipedia; it has some limitations (discussed above).
+# Its available in the tdfData package from my GitHub account
+tdf_stages <-tdf_stages %>% clean_names()
+
+# the TdF did not take place during WWI and WWII; create 'empty' stages so that
+# the animation marks these years.
+missing_years <- crossing(year = c(1915:1918, 1940:1946), stage = as.character(1:10)) %>%
+  mutate(date = as.Date(paste0(year, "-07-",stage), '%Y-%m-%d'))
+
+# add missing years to the data; the stage_no column defines the order for the animation.
+tdf_stages <- bind_rows(tdf_stages, missing_years) %>%
+  arrange(date) %>%
+  mutate(stage_no=1:n())
+
+## ---- prepare plot data ---------------------------------------------------------------
+
+# The approach to getting lines to fade in gganimate is adapted from:
+# stackoverflow.com/questions/58271332/gganimate-plot-where-points-stay-and-line-fades
+plot_data <- tdf_stages %>%
+  uncount(nrow(tdf_stages), .id = "frame") %>%
+  filter(stage_no <= frame) %>%
+  arrange(frame, stage_no) %>%
+  group_by(frame) %>%
+  mutate(
+    # which edition of the TdF does the current frame visualise?
+    frame_year = max(year),
+    # how many stages ago was the stage first visualised created?
+    tail = last(stage_no) - stage_no,
+    # transparency set to be 1 (full) for first visualiation, and then fade.
+    # size set to be larger within same edition of TdF, and then shrink.
+    point_alpha = if_else(tail == 0, 1, 0.7),
+    point_size = if_else(year == frame_year, 2, 1),
+    # Fade lines over 20 stages, and remove once a new edition of the TdF starts.
+    segment_alpha = pmax(0, (20-tail)/20) * (year == frame_year)
+  ) %>%
+  ungroup()
+
+
+## ---- create plot ---------------------------------------------------------------------
+
+# raw (non-animated) plot
+p <- ggplot(plot_data) +
+  
+  # used to dynamically add the edition of the TdF
+  geom_text(
+    data=plot_data, aes(-4, 50.5, label = frame_year),
+    size = 12, hjust = 0, color =infreq_palette["darkblue"]
+  ) +
+  
+  # background map of france (coord_map fixes the aspect ratio)
+  geom_polygon(
+    data = map_data("france"), aes(x=long, y = lat, group = group),
+    fill = "#f3be02", color = "#f6f4e6", size = 0.1
+  ) +
+  coord_map() +
+  
+  # stage start and finish locations as points
+  geom_point(
+    aes(x=start_longitude,y=start_latitude, alpha = point_alpha),
+    size = plot_data$point_size
+  ) +
+  geom_point(
+    aes(x=finish_longitude,y=finish_latitude,group=stage_no, alpha = point_alpha),
+    size = plot_data$point_size
+  ) +
+  
+  # line segment connecting stage start/finish points.
+  geom_segment(
+    aes(
+      x=start_longitude,
+      xend=finish_longitude,
+      y=start_latitude,
+      yend=finish_latitude,
+      alpha = segment_alpha
+    ), color = infreq_palette["orange"]
+  ) +
+  
+  # set themes and legend
+  scale_alpha(range = c(0,1)) +
+  guides(alpha = "none") +
+  theme_void() +
+  transition_manual(frame)
+
+# create animation; speed is set to display 10 stages per second; completes in ~4mins.
+anim_stages <- animate(p,
+  nframes = max(plot_data$frame),
+  duration = max(tdf_stages$stage_no) * 0.1)
+```
+```{r,echo=FALSE,eval = FALSE}
+anim_save('_posts/2021-06-21-the-changing-shape-of-the-tour-de-france/img/tdf_shape.gif')
+```
+
+## Comments
+
+## Acknowledgments {.appendix}
+
+I first became interested in visualising how the Tour de France had changed over time after coming across Pierre Breteau's visualisation in [Le Monde](https://www.lemonde.fr/les-decodeurs/article/2017/06/29/combien-de-fois-le-tour-de-france-a-t-il-traverse-votre-departement_5153251_4355770.html), which shows the frequency with which each *département* of France has been visited by the race.
+
+To create the data set I'm indebted to the contributors to Wikipedia for their efforts to tabulate all of the stages in the Tour's history.
+
+To obtain and visualise the data I relied heavily on R, and and in particular the work of the creators of the `rvest`, `gganimate`, and `tidygeocoder` packages.
+

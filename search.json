@@ -1,0 +1,20 @@
+{
+  "articles": [
+    {
+      "path": "about.html",
+      "title": "About this blog",
+      "description": "What exactly this blog is about is still to be decided.",
+      "author": [],
+      "contents": "\n\n\n\n",
+      "last_modified": "2021-07-02T19:21:25+01:00"
+    },
+    {
+      "path": "index.html",
+      "title": "Infrequently Frequentist",
+      "author": [],
+      "contents": "\n\n\n\n",
+      "last_modified": "2021-07-02T19:21:26+01:00"
+    }
+  ],
+  "collections": ["posts/posts.json"]
+}
