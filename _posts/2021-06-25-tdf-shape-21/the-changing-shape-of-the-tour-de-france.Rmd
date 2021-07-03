@@ -207,7 +207,7 @@ anim_stages <- animate(p,
   duration = max(tdf_stages$stage_no) * 0.1)
 ```
 ```{r,echo=FALSE,eval = FALSE}
-anim_save('_posts/2021-06-21-the-changing-shape-of-the-tour-de-france/img/tdf_shape.gif')
+anim_save('_posts/2021-06-25-the-changing-shape-of-the-tour-de-france/img/tdf_shape.gif')
 ```
 
 ## Comments
