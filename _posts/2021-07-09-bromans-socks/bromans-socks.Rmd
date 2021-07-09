@@ -2,7 +2,7 @@
 title: "A Fully Bayesian Analysis of Broman's Socks"
 description: |
   When Karl Broman tweeted about his laundry he likely didn't imagine that people would still be estimating how many socks he washed 7 years later. In this post my willingness to derive some exact formulae will enable a fully Bayesian, sampling free, approach to laundry quantification.
-date: 07-25-2021
+date: 07-09-2021
 preview: img/socks-posterior.png
 output:
   distill::distill_article:
