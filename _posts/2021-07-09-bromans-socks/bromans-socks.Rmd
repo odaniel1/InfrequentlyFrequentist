@@ -940,6 +940,8 @@ bind_rows(total_socks_posterior_summary, st_total_socks_posterior_summary) %>%
 
 Although the posterior mode is lower for the stopping time model, the true answer of 45 socks is still comfortably within the central 50% credible interval.
 
+## Comments
+
 
 ## Acknowledgments {.appendix}
 

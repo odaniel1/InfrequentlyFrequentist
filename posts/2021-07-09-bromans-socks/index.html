@@ -3883,6 +3883,7 @@ distill-header .nav a {
 <li><a href="#bååths-model">Bååth’s Model</a></li>
 <li><a href="#from-prior-to-posterior">From Prior to Posterior</a></li>
 <li><a href="#stopping-time-model">Stopping Time Model</a></li>
+<li><a href="#comments">Comments</a></li>
 <li><a href="#acknowledgments">Acknowledgments</a></li>
 <li><a href="#computational-considerations">Computational Considerations</a></li>
 <li><a href="#bååths-prior">Bååth’s Prior</a></li>
@@ -4578,6 +4579,7 @@ I’ve used the same product prior as in the previous section.
 </table>
 </div>
 <p>Although the posterior mode is lower for the stopping time model, the true answer of 45 socks is still comfortably within the central 50% credible interval.</p>
+<h2 id="comments">Comments</h2>
 <h2 id="acknowledgments" class="appendix">Acknowledgments</h2>
 <p>This post was inspired by Karl Broman’s <a href="https://twitter.com/kwbroman/status/523221976001679360?ref_src=twsrc%5Etfw">tweet</a>, and Rasmus Bååth’s <a href="http://www.sumsar.net/blog/2014/10/tiny-data-and-the-socks-of-karl-broman/">analysis</a>.</p>
 <p>Computation has been done using R.</p>
@@ -4804,7 +4806,26 @@ P(\rho,\sigma | \eta) &amp; = P\big( \big[ \lfloor \eta/2 \rfloor \theta \big] =
 <div class="appendix-bottom"></div>
 <!--/radix_placeholder_appendices-->
 <!--radix_placeholder_navigation_after_body-->
+<div class="distill-site-nav distill-site-footer">
+  <p>Owen Daniel • Copyright <script>document.write(new Date().getFullYear())</script></p>
+  <p>Built with <a href="https://github.com/rstudio/distill">distill for R Markdown</a></p>
+  <!--from https://github.com/jbkunst/blog/blob/master/_footer.html-->
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    
+    
+    var t = setInterval(function(){
+      var resizeEvent = new Event('resize');
+      window.dispatchEvent(resizeEvent);  
+    }, 1000);
+    
+    
+  });
+
+</script>
+</div>
 <!--/radix_placeholder_navigation_after_body-->
+
 
 </body>
 
