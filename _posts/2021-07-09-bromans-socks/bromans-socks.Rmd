@@ -893,13 +893,13 @@ ggplot(st_posterior2 %>% filter(n <= 100)) +
 [Posterior Grid]{.panel-name}
 
 ```{r ST-posterior-grid-plot,   fig.height = 6}
-st_posterior_grid <- plot_sock_grid(st_posterior_grid %>% filter(rho <= 30, sigma <= 20), posterior)
+p_st_posterior_grid <- plot_sock_grid(st_posterior_grid %>% filter(rho <= 30, sigma <= 20), posterior)
 print(st_posterior_grid)
 ```
 
 ```{r preview-plot,   echo = FALSE, eval = FALSE}
 # save image for preview
-p_preview <- st_posterior_grid +
+p_preview <- plot_sock_grid(st_posterior_grid %>% filter(rho <= 30, sigma <= 20), posterior) +
   labs(x = "Pairs of Socks", y = "Singleton socks") +
   theme(
     legend.position = "none",
@@ -909,7 +909,7 @@ p_preview <- st_posterior_grid +
     axis.text = element_blank()
   )
 
-# ggsave('_posts/2021-07-25-bromans-socks/img/socks-posterior.png', plot = p_preview, device = 'png')
+ggsave('img/socks-posterior.png', plot = p_preview, device = 'png', width = 14, height = 13, units = "cm")
 ```
 
 :::
