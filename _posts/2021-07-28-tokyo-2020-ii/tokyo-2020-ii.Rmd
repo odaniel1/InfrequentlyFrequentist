@@ -1,0 +1,273 @@
+---
+title: "Tokyo 2020 Betting II: Feature Engineering and Model Refinement"
+description: |
+  A short description of the post.
+date: 07-28-2021
+output:
+  distill::distill_article:
+    highlight: /home/od/Documents/R Projects/InfrequentlyFrequentist/infreq.theme
+    toc: true
+    toc_depth: 1
+  self_contained: false
+categories:
+  - Bayesian
+  - Cycling
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, code_folding = TRUE)
+options(kableExtra.html.bsTable = T)
+
+library(tidyverse)
+library(lubridate)
+library(infreqthemes)
+library(xaringanExtra)
+library(knitr)
+library(kableExtra)
+library(fst)
+
+xaringanExtra::use_panelset()
+
+remote_project_path <- '~/Documents/R Projects/track-cycling/'
+remote_targets_path <- paste0(remote_project_path, '_targets/objects/')
+
+read_remote_target <- function(name, path = remote_targets_path){
+  
+  file_path <- paste0(path,name)
+  
+  tar <- try(read_rds(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  
+  tar <- try(read_fst(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  else{stop("Failed to read remote target")}
+}
+
+```
+
+
+# Best-of-Three Matches
+
+In the initial rounds of each competition, matches are determined by a single sprint. From the quaterfinals onwards the format changes so that the match is determined by the best-of-three sprints between each pair of riders.
+
+A rider can win a best-of-three in three ways:
+
+* winning the first two sprints (in which case there is no third race), 
+* winning the first, losing the second, and then winning the third deciding sprint, 
+* losting the first, winning the second, and the third deciding sprint.
+
+If a rider has probability $p$ of winning the sprint, the probability of them winning a best-of-three match is then
+
+$$p^2 + p(1-p)p + (1-p)p^2  = p^2 + 2p^2(1-p)$$
+
+The plot below shows how the probability of winning a best-of-three match compares to the probability of winning a single sprint. The best-of-three format has the greatest impact when the probability of that the rider wins a single sprint is at ~0.2 and ~0.8, at which point the probabiity of winning the sprint is respectively ~0.1 and ~0.9. 
+
+<aside>The exact points at which the best-of-three/single sprint formats differ the most are $\frac12 \pm \frac{1}{2\sqrt{3}}$</aside>
+
+```{r}
+ggplot(tibble(p=c(0,1)), aes(p)) +
+  stat_function(
+    aes(color = 'Single'),
+    fun = function(p) p,
+    size = 1
+  ) +  
+  stat_function(
+    aes(color = 'Best-of-Three'),
+    fun = function(p){ p^2 + 2*p^2*(1-p)},
+    size=1.5
+   ) +
+  stat_function(
+    aes(color = 'Single'),
+    fun = function(p) p,
+    size = 0.6
+  ) + 
+  scale_y_continuous(limits=c(0,1), breaks = seq(0,1,by=0.2)) +
+  labs(x="Prob. Wins Sprint", y="Prob. Wins Match") +
+  scale_color_manual('', values = c(unname(infreq_palette[c( "darkblue", "orange")])))
+```
+
+## BT3: Best-Of-Three Likelihood
+
+To account for this match format I'll introduce a custom likelihood that take into account the number of sprints contested. As in the original logistic model, I'll define the likelihood in terms of the strength difference between the riders.
+
+One convenience I'll introduce is to formulate the model from the perspective of the winning rider. That is, in words the likelihood I'll define is
+
+$$\text{Given the match was won in $\bf{S}$ sprints, how likely is it that} \\ \text{the strength difference of the winning and losing riders is $\bf \delta$?}$$
+
+Rather than considering matches between two riders $r$, and $s$ and setting the variable $W_{r,s} = 1$ if $r$ wins, and 0 if $s$ does as I did in the previous model specification, I'll instead consider rider $w$ the winner, and $l$ the loser and the variable $S$ which is the number of sprints that $w$ won to take the match.
+
+<aside>The Stan implementation of models BT1 and BT2 actually were already coded in this same formulation for consistency.</aside>  
+
+If we denote $p_\delta = \text{logit}^{-1}(\delta)$ then the likelihood that the winning rider's strength is $\delta$ more (possibly less) than the loser is
+
+$$
+L_{\text{match}}\big(\alpha_w - \alpha_l = \delta \,  |\,  S = s\big) =
+\begin{cases}
+p_\delta,  & s = 1 \\ \\
+p_\delta^2, & s = 2\\ \\
+2p_\delta^2 (1-p), & s = 3 
+\end{cases}
+$$
+In the case that $s = 1$ this is just an alternative way of expressing the likelihood for the original logistic regression model. 
+
+::::: {.panelset}
+
+::: {.panel}
+[BT3]{.panel-name}
+$$
+\begin{align*}
+\bf{\text{Priors}}\\
+\sigma & \sim \text{Gamma}(80,60) \\
+\alpha_r & \sim \text{Normal}(0,\sigma) \\
+\\
+\bf{\text{Likelihood}}\\
+\alpha_w - \alpha_l | S &\sim L_{\text{match}}(\alpha_r - \alpha_s | S)
+\end{align*}
+$$
+:::
+
+::: {.panel}
+[Example Data]{.panel-name}
+```{r}
+# read match data from remote _target store
+matches <- read_remote_target("matches")
+
+matches_sample <-  matches %>%
+  filter(event == '2020 UCI TRACK WORLD CYCLING CHAMPIONSHIPS', round == 'Finals', gender == 'Women') %>%
+  mutate(across(everything(), as.character)) %>%
+  select(event, date, gender, round, rider_1,rider_2,rider_id_1,rider_id_2, winner_id,loser_id, sprints) %>%
+  slice(1)
+
+matches_sample <- tibble(Field = names(matches_sample), Example = unlist(matches_sample[1,]))
+matches_sample %>%
+  kable("pipe") %>%
+  kable_styling(full_width=FALSE, bootstrap_options = c("striped", "hover", "condensed"),font_size = 10)
+```
+:::
+
+::: {.panel}
+[Stan code]{.panel-name}
+
+```{r, code_folding = FALSE}
+writeLines(readLines(paste0(remote_project_path, 'stan/bt2.stan')))
+```
+
+:::
+  
+:::::
+<aside> **BT3**. Bradley-Terry with Match Likelihood.</aside>
+
+In light of changing the likelihood, its worth thinking about whether the evaluation measures (accuracy and log loss) used earlier are still appropriate.
+
+For the accuracy, we now have a choice: do we measure how accurately the model predicted the outcome of each separate sprint, or the outcome of overall matches? Since for applying the model we'll be interested in match outcomes, it is reasonable to maintain the current definition and predict the match outcome.
+
+The log-loss metric is intrinsicly linked to the likelihood of the model: as before, its the average log likelihood of the data. For that reason it makes sense for us to measure model performance with a revised *match log loss* that uses the match likelihood in place of the logistic model.
+
+::::: {.panelset}
+
+::: {.panel}
+[Accuracy]{.panel-name}
+```{r}
+
+bt1_summ <- read_remote_target("bt_summary_bt1.1")
+bt2_summ <- read_remote_target("bt_summary_bt2.1")
+bt3_summ <- read_remote_target("bt_summary_bt3")
+
+bt1_measures <- bt1_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  mutate(
+    model = 'bt1',
+    model_split = paste(model, "-", split)
+  )
+
+
+bt2_measures <- bt2_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  mutate(
+    model = 'bt2',
+    model_split = paste(model, "-", split)
+  )
+
+bt3_measures <- bt3_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  mutate(
+    model = 'bt3',
+    model_split = paste(model, "-", split)
+  )
+
+measures <- bind_rows(bt1_measures, bt2_measures, bt3_measures)
+```
+
+```{r accuracy_table, eval = TRUE, echo = FALSE}
+accuracy <- measures %>%
+  filter(measure == "accuracy")
+
+accuracy %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3) %>%
+  kable_styling(full_width = FALSE) %>%
+  collapse_rows(1)
+```
+
+```{r accuracy_plot, echo = FALSE}
+ggplot(accuracy, aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(0,1)) +
+  labs(x= "Accuracy", y="") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(xintercept=0.5, linetype = "dashed", color = infreq_palette["orange"]) + 
+  geom_text(data = tibble(x=0.40,y=0.6,split = 'training', text = 'Benchmark', model = 'bt2'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
+```
+:::
+  
+::: {.panel}
+[Match Log Loss]{.panel-name}
+
+```{r match_log_loss}
+log_loss <- measures %>%
+  filter(measure == "match_log_loss")
+
+log_loss %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3)
+```
+
+```{r log_loss_plot, echo = FALSE}
+ggplot(log_loss,aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(-1.3,0)) +
+  labs(x= "Log Loss", y = "") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(xintercept=log(1/2), linetype = "dashed", color=infreq_palette["orange"]) + 
+  geom_text(data = tibble(x=log(1/2) - 0.2,y=0.6,split = 'training', text = 'Benchmark', model = 'bt2'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
+```
+:::
+  
+:::::
+
+
+## Comments
+
+## Acknowledgments {.appendix}
+
+This post makes heavy use of R and Stan, and so benefits from the many people who contribute to their development.
+  
