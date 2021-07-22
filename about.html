@@ -86,27 +86,24 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   <!--radix_placeholder_meta_tags-->
   <title>Infrequently Frequentist: About this blog</title>
   
-  <meta property="description" itemprop="description" content="What exactly this blog is about is still to be decided."/>
   
   
   
   <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
   <meta property="og:title" content="Infrequently Frequentist: About this blog"/>
   <meta property="og:type" content="article"/>
-  <meta property="og:description" content="What exactly this blog is about is still to be decided."/>
   <meta property="og:locale" content="en_US"/>
   <meta property="og:site_name" content="Infrequently Frequentist"/>
   
   <!--  https://dev.twitter.com/cards/types/summary -->
   <meta property="twitter:card" content="summary"/>
   <meta property="twitter:title" content="Infrequently Frequentist: About this blog"/>
-  <meta property="twitter:description" content="What exactly this blog is about is still to be decided."/>
   
   <!--/radix_placeholder_meta_tags-->
   <!--radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-rmarkdown-metadata">
-  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description"]}},"value":[{"type":"character","attributes":{},"value":["About this blog"]},{"type":"character","attributes":{},"value":["What exactly this blog is about is still to be decided."]}]}
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title"]}},"value":[{"type":"character","attributes":{},"value":["About this blog"]}]}
   </script>
   <!--/radix_placeholder_rmarkdown_metadata-->
   <!--radix_placeholder_navigation_in_header-->
@@ -2390,7 +2387,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"About this blog","description":"What exactly this blog is about is still to be decided.","authors":[]}
+{"title":"About this blog","authors":[]}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -2419,11 +2416,34 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <h1>About this blog</h1>
 <!--radix_placeholder_categories-->
 <!--/radix_placeholder_categories-->
-<p>What exactly this blog is about is still to be decided.</p>
+
 </div>
 
 
 <div class="d-article">
+<h1 id="whats-this-all-about">What’s this all about?</h1>
+<p>This is a home for various mathematical/statistical modelling projects I’ve done for my own pleasure and learning, with the occasional detour into exploratory data analysis, and programming. Common themes will become aparant, but be prepared for analysis of cycling, justice, and bats.</p>
+<p>There are plenty of blogs out there explaining how to data wrangle in a given programming language, or <em>implement</em> specific models. I’m indebted to people for creating that content, but my aim is somewhat different. I’m aiming to create case studies for analytical projects: explaining my workflow, why I’ve <em>chosen</em> models, and some of the mathematical rationale/intuition behind these decisions.For that reason, the code (predominantly in R, and Stan) behind these projects is available but by default not shown.</p>
+<h1 id="why-infrequently-frequentist">Why <em>Infrequently Frequentist</em>?</h1>
+<p>Most of the problems I’m analysing here are in the realm of statistical modelling, which neccessarily brings up the Bayesian/Frequentist debate. I don’t have a formal philosophical stance that one is right and the other is wrong, but my track record indicates that I am <em>infrequently frequentist</em>, or <em>basically Bayesian</em>.</p>
+<p>My rationale for leaning towards Bayesian solutions are hardly original, but can be summarised (in decreasing order of significance to me) as:</p>
+<ul>
+<li><p>Bayesian uncertainty (credible) intervals are less prone to misinterpretation than frequentist (confidence) intervals.</p></li>
+<li><p>Posterior distributions can easily be propogated, enabling us to easily estimate uncertainty for downstream measures of interest.</p></li>
+<li><p>Real world problems often have small data sets, or large data sets with statistically different sub-populations.I’ve found Bayesian hierarchical modelling to be effective at handling these scenarios.</p></li>
+<li><p>Deciding whether something is meaningful on the basis of a <span class="math inline">\(p\)</span>-value is regularly misunderstood, or worse abused.</p></li>
+<li><p>Its rare that we have <strong>no</strong> prior knowledge about model parameters. Conversely: normally we have some prior knowledge about parameters, so we should use it… carefully.</p></li>
+</ul>
+<p>For some more nuanced (and authoritative) sources that have lead me to those views:</p>
+<ul>
+<li><p>Richard McElreath has made Chapter 1 of his <em>Statistical Rethinking</em> <a href="http://xcelab.net/rmpubs/sr2/statisticalrethinking2_chapters1and2.pdf">freely available</a>, and this provides an accessible introduction to the differences in approaches.</p></li>
+<li><p>Too many posts to mention on <a href="https://statmodeling.stat.columbia.edu/">andrewgelman.com</a>, but <a href="https://statmodeling.stat.columbia.edu/2014/01/21/everything-need-know-bayesian-statistics-learned-eight-schools/">this</a> guest post by Phil Price, and the accompanying comments, is a good starting point.</p></li>
+<li><p>Frank Harrell’s <a href="https://www.fharrell.com/post/journey/">journey</a> from frequentist to Bayesian statistics.</p></li>
+</ul>
+<h1 id="about-me">About Me</h1>
+<p>I’m currently working for the UK Civil Service, as a data scientist within Her Majesties Courts and Tribunals Service (HMCTS) supporting the recovery programme of the courts from the CV19 pandemic.</p>
+<p>In previous lives I’ve been the analytical advisor to the senior judiciary of England and Wales, provided analysis for the UK’s EU and International Fisheries negotiations teams ahead of Brexit, and optimised how offenders are allocated to prisons within the English and Welsh prison estate.</p>
+<p>Prior to all that I completed a PhD in mathematics at the University of Warwick, specialising in probability theory and statistical physics.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->
 <!--/radix_placeholder_article_footer-->
@@ -2432,6 +2452,15 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <div class="d-appendix">
 </div>
 
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
 
 <!--radix_placeholder_site_after_body-->
 <!--/radix_placeholder_site_after_body-->
