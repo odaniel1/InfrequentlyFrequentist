@@ -1,7 +1,7 @@
 ---
 title: "Tokyo 2020 Betting I: Predictive Models for Pairwise Matches"
 description: |
-  The first in a series of posts building towards me betting on the track cycling at the Tokyo Olympics. This post introduces the series, and the basic model behind my attempt to win big at the bookies!
+  The first in a series of posts building towards betting on the track cycling at the Tokyo Olympics. This post introduces the series, and the basic model behind my attempt to win big at the bookies!
 date: 07-23-2021
 preview: img/strengths_wc20.png
 output:
@@ -48,34 +48,31 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
-The Olympics are officially under way, and I'm primed to become an armchair expert in sports that I haven't expressed any interest in for four years (I'll have to wait another 6 months before I crack out my curling top tips though). As a more proactive way to engage with the games I thought I'd explore how to integrate predictive modelling with betting strategies.
+The Olympics are officially under way, and I'm primed to become an armchair expert in sports that I haven't expressed any interest in for four years. As a proactive way to engage with the games I thought I'd explore how to integrate predictive modelling with betting strategies.
 
-Statistical models are common place amongst bookmakers, and I'm not naive enough to believe that a model I threw together over a few days as a hobby could beat a concerted effort by a team of experienced sports analysts. I first developed this project for the 2019 Track Cycling World Championships, but it turned out UK bookmakers weren't offering odds, let alone those derived from machine learning: so that gives me hope that a team of dedicated track cyling modelers simply doesn't exist!
+Statistical models are common place amongst bookmakers, and I'm not naive enough to believe a model I threw together over a few days could beat a concerted effort by experienced sports analysts. However, I first explored this project for the 2019 Track Cycling World Championships, but UK bookmakers weren't offering odds, let alone those derived from machine learning: so that gives me hope that a team of dedicated track cyling modelers simply doesn't exist!
 
-I'm tentatively optimistic odds will be available, after all the olympics. It'd be particularly fitting given cycling betting is one of only four [legal](https://iclg.com/practice-areas/gambling-laws-and-regulations/japan) betting markets in Japan.
+I'm tentatively optimistic odds will be available this time around, what with it being the olympics. It'd be particularly fitting given cycling is one of only four [legal](https://iclg.com/practice-areas/gambling-laws-and-regulations/japan) betting markets in Japan.
 
-<aside>[This](https://www.bbc.co.uk/sport/cycling/52283598) article/mini-documentary depicts the cultural significance of track cycling in Japan.
-</aside>
+In this post I'll provide a brief introduction to the event I'm hoping to bet on, and the statistical model which will form the base of my strategy.
 
-In this post I'll provide a brief introduction to the event I'm hoping to bet on, and the base statistical model which for my betting strategy.
-
-Subsequent posts will refine the model through feature engineering, and then derive the betting strategy itself. If the bookies play-ball and provide odds, I'll place some bets and summarise how this experiment turned out!
+Subsequent posts will refine the model through feature engineering, and derive the betting strategy itself. If the bookies play-ball and provide odds, I'll place some bets and summarise how this experiment turned out!
 
 I'm also hoping this series will serve as an example of my analytical workflow: to that end I'll explain some of the errors and simplifications I made along the way, how I spotted and resolved them.
 
 <aside>There are likely modelling errors I haven't noticed yet, comments are welcome!</aside>
 
-Not least I'll say up front this work might not yield usable odds! Like many predictive models, this one is susceptible to Covid 19 impacts: putting aside the model itself, most of the track cycling calendar for 2020 and 2021 was cancelled, or attended by few athletes, so we simply don't have much recent data to feed it.
+Not least I'll say up front this work might not yield usable odds! Like many predictive models, this one is susceptible to Covid 19 impacts: most of the track cycling calendar for 2020 and 2021 was cancelled so we simply don't have much recent data.
 
 But I won't let that spoil the fun, after all you can't win if you don't play the game...
 
 
-## Assumptions
-This post makes some assumptions about you: that you have some prior exposure to regression, and evaluation metrics for classification models.
+### Assumptions
+This post makes some assumptions about you: that you have some prior exposure to (or are keen to learn) regression, and evaluation metrics for classification models.
 
-I'll assume you're familiar with logistic regression and evaluating predictive performance with the *log-loss* - which I'll tweak for the specifics of the competition format.
+Specifically I'll assume you're familiar with logistic regression and evaluating predictive performance with *accuracy* and *log-loss*.
 
-If you're interested in reading underlying code, you'll likely need some experience (or be keen to learn) a mix of R and Stan.
+If you're interested in reading the underlying code, this is in R and Stan.
 
 # Track Sprinting and Data Overview
 
@@ -90,7 +87,7 @@ The sprint is contested by two athletes with the winner being the first across t
 <aside>A great [example](https://www.youtube.com/watch?v=CkmmXSs-ooQ) is the London 2012 women's sprint final between Victoria Pendleton and Anna Meares.</aside>
 
 
-## About the Data
+### About the Data
 
 Detailed match results for most large track cycling events are maintained by [Tissot](https://www.tissottiming.com/). These results are made available in a common PDF format, that I have parsed to extract structured data from.
 
@@ -113,7 +110,7 @@ matches_summary <- matches %>%
 
 The  data I'm using spans ~`r round(matches_summary$span_days/365)` years from `r format(matches_summary$min_date, '%B %Y')` to  `r format(matches_summary$max_date, '%B %Y')`, and for this post I'll focus on the women's competition. During that period I have data for a total of `r matches_summary$n_matches` matches between `r matches_summary$n_riders` athletes.
 
-The sample below shows the fields that are immediately relevant to the initial model I'll fit in this post; I'll explore other information I could extract from the result PDFs in later model fits.
+The sample below shows the fields that are immediately relevant to the initial model; I'll explore the predictive strength of further information in the next post.
 
 ```{r matches-sample, echo = FALSE}
 matches_sample <-  matches %>%
@@ -162,17 +159,17 @@ This transformation has converted a complex *fractional* relationship between ri
 
 Specifically, this model is now equivalent to a classic logistic regression problem. To see this more clearly we can look at how we might implement this in code:
 
-We create a data frame with a row per match, and $R + 1$ columns: one for each athlete, and one with the match outcome. The match between $r$ and $s$ then has 0 entries in each of the rider columns except for an entry of +1 in the column for $r$, and -1 for $s$. Finally the result column is set to 1 if the rider marked as +1 wins, and 0 if -1 wins.
+We create a data frame with a row per match, and $R + 1$ columns. For a match betwee n riders $r$ and $s$the row will have entries of 0 in each of the rider columns, except for an entry of +1 in the column for $r$, and -1 for $s$. The result column is set to 1 if the rider marked as +1 wins, and 0 if -1 wins.
 
-<aside> Ex. $\left(0,0,0,1,0,-1,0 ,\, \underline{1}\right)$ would denote a match between riders 4 and 6, in a league of 7, in which rider 4 won.</aside> 
+<aside> Ex. $\left(0,0,0,1,0,-1,0 ,\, \underline{1}\right)$ would denote a match between riders 4 and 6, in a league of 7, in which rider 4 won.</aside>
 
-This could now be passed to your favourite tool for logistic regression (eg. `glm` in R) and you would fit the Bradley-Terry model above. Under the hood that will run an optimisation algorithm to find the vector of strengths $\alpha^*$ that maximises the likelihood.
+Passing this data to your favouritetool for logistic regression (eg. `glm` in R) will fit the Bradley-Terry model as its defined above. Under the hood this will run an optimisation algorithm to find the vector of strengths $\alpha^*$ that maximises the likelihood.
 
-There is a challenge however, as this solution won't be unique: any translation by a constant $\alpha^* + \text{constant}$ will have the same likelihood. In the frequentist approach this is resolved by introducing a constraint that $\sum_r \alpha_r = 0$.
+There is a challenge however, as this solution won't be unique: any translation by a constant, $\alpha^* + C$ will have the same likelihood. In the frequentist approach this is resolved by introducing a constraint that $\sum_r \alpha_r = 0$.
 
 <aside>[This](https://stats.stackexchange.com/questions/3143/linear-model-with-constraints) CrossValidated post has good answers explaining how to achieve this with R's `glm` function.</aside>
 
-## The Bayesian Bradley-Terry Model
+### The Bayesian Bradley-Terry Model
 
 Rather than following the frequentist approach, I'll fit a Bayesian Bradley-Terry model. My general rationale for working with Bayesian models is [here](www.infreq.com/about/#why-infrequently-frequentist), but in this instance there's an added incentive as it opens an alternative method to resolving the identifiability issue above.
 
