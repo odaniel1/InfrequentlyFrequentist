@@ -1,8 +1,9 @@
 ---
-title: "Tokyo 2020 Betting II: Feature Engineering and Model Refinement"
+title: "Tokyo 2020 Betting II: Model Refinement and Feature Engineering"
 description: |
-  A short description of the post.
+  In this second post of the series, I'll adapt the Bradley-Terry model to a custom best-of-three likelihood to better capture the event dynamics, before integrating new data fields to boost model performance.
 date: 07-28-2021
+preview: img/best-of-three.png
 output:
   distill::distill_article:
     highlight: /home/od/Documents/R Projects/InfrequentlyFrequentist/infreq.theme
@@ -25,6 +26,7 @@ library(xaringanExtra)
 library(knitr)
 library(kableExtra)
 library(fst)
+library(formattable)
 
 xaringanExtra::use_panelset()
 
@@ -47,60 +49,120 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
+[Last time](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/) I introduced the basic model I'll be using to predict the results of the track cycling Individual Sprint at Tokyo 2020.
 
-# Best-of-Three Matches
+This post will pick up where that ended, with the focus turning to building on the basic model: adapting it to handle more of the specifics of track cycling.
 
-In the initial rounds of each competition, matches are determined by a single sprint. From the quaterfinals onwards the format changes so that the match is determined by the best-of-three sprints between each pair of riders.
+I'll present the model developments in the order I made them - rather than order of impact. In the conclusion I'll reflect on how I could have improved my approach to prioritising the developments.
 
-A rider can win a best-of-three in three ways:
+The table below summarises the changes I'll explore, the first two were presented in the first post:
 
-* winning the first two sprints (in which case there is no third race), 
-* winning the first, losing the second, and then winning the third deciding sprint, 
-* losting the first, winning the second, and the third deciding sprint.
+```{r, echo = FALSE}
+model_list <- read_remote_target("model_list")
 
-If a rider has probability $p$ of winning the sprint, the probability of them winning a best-of-three match is then
-
-$$p^2 + p(1-p)p + (1-p)p^2  = p^2 + 2p^2(1-p)$$
-
-The plot below shows how the probability of winning a best-of-three match compares to the probability of winning a single sprint. The best-of-three format has the greatest impact when the probability of that the rider wins a single sprint is at ~0.2 and ~0.8, at which point the probabiity of winning the sprint is respectively ~0.1 and ~0.9. 
-
-<aside>The exact points at which the best-of-three/single sprint formats differ the most are $\frac12 \pm \frac{1}{2\sqrt{3}}$</aside>
-
-```{r}
-ggplot(tibble(p=c(0,1)), aes(p)) +
-  stat_function(
-    aes(color = 'Single'),
-    fun = function(p) p,
-    size = 1
-  ) +  
-  stat_function(
-    aes(color = 'Best-of-Three'),
-    fun = function(p){ p^2 + 2*p^2*(1-p)},
-    size=1.5
-   ) +
-  stat_function(
-    aes(color = 'Single'),
-    fun = function(p) p,
-    size = 0.6
-  ) + 
-  scale_y_continuous(limits=c(0,1), breaks = seq(0,1,by=0.2)) +
-  labs(x="Prob. Wins Sprint", y="Prob. Wins Match") +
-  scale_color_manual('', values = c(unname(infreq_palette[c( "darkblue", "orange")])))
+model_list %>% 
+  filter(!str_detect(model_name, "\\.\\d+")) %>%
+  transmute(
+    Post = if_else(model_name %in% c("bt1", "bt2"), 'Tokyo 2020 Betting I', 'Tokyo 2020 Betting II'),
+    Model = model_name,
+    Description = description
+  ) %>%
+  kable() %>%  
+  kable_styling(full_width = FALSE) %>%
+  collapse_rows(1, valign = "top")
 ```
 
-## BT3: Best-Of-Three Likelihood
+### Assumptions
+This post makes some assumptions about you!
 
-To account for this match format I'll introduce a custom likelihood that take into account the number of sprints contested. As in the original logistic model, I'll define the likelihood in terms of the strength difference between the riders.
+I'll assume you've read the previous post in the series (though this might hold-up as a stand-alone): I won't recap the data or basic model.
 
-One convenience I'll introduce is to formulate the model from the perspective of the winning rider. That is, in words the likelihood I'll define is
+The model variants will rely on a few technical tools that I'll recap, but not fully introduce: 
 
-$$\text{Given the match was won in $\bf{S}$ sprints, how likely is it that} \\ \text{the strength difference of the winning and losing riders is $\bf \delta$?}$$
+* the role of the likelihood in regression models,
 
-Rather than considering matches between two riders $r$, and $s$ and setting the variable $W_{r,s} = 1$ if $r$ wins, and 0 if $s$ does as I did in the previous model specification, I'll instead consider rider $w$ the winner, and $l$ the loser and the variable $S$ which is the number of sprints that $w$ won to take the match.
+* hierarchical (random) effects, and
 
-<aside>The Stan implementation of models BT1 and BT2 actually were already coded in this same formulation for consistency.</aside>  
+* Gaussian processes.
 
-If we denote $p_\delta = \text{logit}^{-1}(\delta)$ then the likelihood that the winning rider's strength is $\delta$ more (possibly less) than the loser is
+If you're interested in reading the underlying code, this is in R and Stan.
+
+
+# The Match Likelihood
+
+The Bradley-Terry model assumes matches is either won or lost, with no delineation of the *scale* of a win.
+
+In the early heats of the individual sprint this is an accurate assumption: the format is a knockout where a single sprint is contested.
+
+From the quarterfinals, matches are contested in a best-of-three format which introduces a scale to winning.
+
+Let $p$ be the probability that a given athlete will win a single sprint. The possible outcomes that they win a best-of-three match are:
+
+| Scenario | Sprints Contested | Prob. Occurence |
+|---|:-:|:-:|
+| Wins first two sprints outright | 2 |  $p^2$ |
+| Wins first and third, loses second | 3 | $p(1-p)p$ |
+| Loses first, wins second and third | 3 |$(1-p)p^2$ |
+| **Total** | |  $p^2 + 2p^2(1-p)$ |
+
+```{r}
+p_best_of_three <- ggplot(tibble(p=c(0,1)), aes(p)) +
+  
+  stat_function(
+    aes(linetype = '2', color = '2'),
+    fun = function(p){ p^2  },
+    size=1, color = infreq_palette["darkblue"]
+  ) +
+  
+  stat_function(
+    aes(linetype = '3', color = '3'),
+    fun = function(p){(2*p^2*(1-p))},
+    size=1, color = infreq_palette["darkblue"]
+  ) + 
+  
+  stat_function(
+    aes(linetype = 'Total', color = 'Total'),
+    fun = function(p) p^2 + 2*p^2*(1-p) ,
+    size = 2, color = infreq_palette["orange"]
+  )  +
+  
+  geom_text(
+    data = tribble(~p, ~y, ~text, ~color,
+            0.9, 0.60,'2 sprints', 'Total',
+            0.9, 0.31, '3 sprints','3',
+            0.92, 1.07, 'Total', '2'),
+    aes(p,y,label=text),
+    color = c(infreq_palette["darkblue"], infreq_palette["darkblue"], infreq_palette["orange"]),
+    size = c(5,5,6)
+  ) +
+  
+  scale_y_continuous(limits=c(0,1.2), breaks = seq(0,1.2,by=0.2)) +
+  coord_cartesian(ylim = c(0,1.1)) +
+  labs(x="Prob. Wins Sprint", y="Prob. Wins Match") +
+  scale_linetype_manual(values = c("solid", "dotted", "solid")) +
+  scale_color_manual(values = c(infreq_palette["darkblue"],infreq_palette["darkblue"],infreq_palette["orange"])) +
+  theme(legend.position = "none")
+
+p_best_of_three
+```
+<aside>Probability of winning a best-of-three match.</aside>
+
+```{r preview-plot,   echo = FALSE, eval = FALSE}
+# save image for preview
+ggsave('img/best-of-three.png', plot = p_best_of_three, device = 'png', width = 12, height = 10, units = "cm")
+```
+
+The best-of-three format can be considered *fairer* than a single sprint, as it increases the probability that the stronger athlete wins: though for values of $p$ near the mid-point or either extreme, the difference is only slight. 
+
+## BT3: The Match Likelihood
+
+To account for the match format I'll introduce a custom likelihood. For early rounds this will be exactly as before, but for later rounds will take into account the best-of-three format.
+
+One convenience I'll introduce is to formulate the model from the perspective of the winning rider. In words the likelihood I'll consider is: 
+
+*Given that the winning athlete, $w$, beat the loser, $l$, in $S$ sprints: how likely is it that the strength difference between them is $\delta = \alpha_w - \alpha_l$?*
+
+If we denote $p_\delta = \text{logit}^{-1}(\delta)$ then the likelihood is
 
 $$
 L_{\text{match}}\big(\alpha_w - \alpha_l = \delta \,  |\,  S = s\big) =
@@ -110,7 +172,12 @@ p_\delta^2, & s = 2\\ \\
 2p_\delta^2 (1-p), & s = 3 
 \end{cases}
 $$
-In the case that $s = 1$ this is just an alternative way of expressing the likelihood for the original logistic regression model. 
+
+The formula above is not a true likelihood per se, I'm using two convenient properties of the race format and the data, that allow this reduced definition:
+
+Firstly, the case $s=1$ gets envoked on a separate subset of the data to the cases $s=2,\,3$. So really this is a *separate* likelihood (equivalent to the bernoulli, logistic regression, model). Combining the two scenarios in one formula is a convenience as I can fit all the data to one model, rather than splitting out the cases.
+
+Secondly, both likelihoods ($s=1$ case, and $s=2,3$) are presented from the perspective of the winning rider: i.e. we don't have the cases $s=-1,-2,-3$. In reality these cases do exist - but by feeding the model data from the winning perspective the other scenarios won't be induced.
 
 ::::: {.panelset}
 
@@ -150,8 +217,8 @@ matches_sample %>%
 ::: {.panel}
 [Stan code]{.panel-name}
 
-```{r, code_folding = FALSE}
-writeLines(readLines(paste0(remote_project_path, 'stan/bt2.stan')))
+```{r, echo = FALSE, code_folding = FALSE}
+writeLines(readLines(paste0(remote_project_path, 'stan/bt3.stan')))
 ```
 
 :::
@@ -159,25 +226,67 @@ writeLines(readLines(paste0(remote_project_path, 'stan/bt2.stan')))
 :::::
 <aside> **BT3**. Bradley-Terry with Match Likelihood.</aside>
 
-In light of changing the likelihood, its worth thinking about whether the evaluation measures (accuracy and log loss) used earlier are still appropriate.
+The official list of track cyclists competing at Tokyo has now been [published](https://olympics.com/tokyo-2020/olympic-games/en/results/all-sports/athletes.htm) so we can create the strengths plot for the new model using the riders who are expected to take part.
 
-For the accuracy, we now have a choice: do we measure how accurately the model predicted the outcome of each separate sprint, or the outcome of overall matches? Since for applying the model we'll be interested in match outcomes, it is reasonable to maintain the current definition and predict the match outcome.
+<aside>This may include athletes not competing the individual sprint, as the start list has not yet been published</aside>
 
-The log-loss metric is intrinsicly linked to the likelihood of the model: as before, its the average log likelihood of the data. For that reason it makes sense for us to measure model performance with a revised *match log loss* that uses the match likelihood in place of the logistic model.
+```{r p_strengths_bt1, fig.height = 8, warning = FALSE, message = FALSE}
+riders <- read_remote_target("riders")
+
+olympic_riders <- read_csv("olympic-athletes.csv") %>%
+  mutate(Athlete = if_else(Athlete == 'ANTONOVA NATALIIA', 'ANTONOVA NATALIA', Athlete)) %>%
+  inner_join(riders,.,  by = c("rider_name" = "Athlete"), keep = TRUE)
+
+
+
+bt3_summ <- read_remote_target("bt_summary_bt3")
+
+bt3_strength_summ <- bt3_summ %>%
+  filter(str_detect(variable, 'alpha')) %>%
+  mutate(rider_id = str_match(variable, '\\[(.*)\\]')[,2] %>% as.numeric()) %>%
+  left_join(olympic_riders, .) %>%
+  mutate(rider_name = fct_reorder(rider_name,median))
+
+p_strengths_bt3 <- ggplot(bt3_strength_summ) +
+  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name), color = infreq_palette["darkblue"]) +
+  labs(y="",x="Strength, α")
+
+p_strengths_bt3
+```
+
+There's a compelling case for Lee Wai Sze to win gold - though this is based on the training data, so doesn't include the latest results.
+
+<aside>Once I've picked my final model, I'll fit to the full data range and present this plot again</aside>
+
+## Match Performance Metrics
+
+In light of changing the likelihood, its worth reviewing the evaluation measures I'm using.
+
+For model accuracy should we assess how many separate sprints are correctly predicted, or the overall outcome of the matches? I'll stick with match outcomes, since when applying the model this will be the measure of interest.
+
+The log-loss metric is intrinsicly linked to the likelihood of the model (its the average log likelihood of the data), so we should revise this to use the new likelihood.
+
+In this revised metric the benchmark based on random guessing also needs to be reassessed.
+
+For a best-of-three match there are four possible outcomes (either athlete winning in either 2 or 3 sprints), so a random guessing strategy has a log loss of $\log(\textstyle \frac14) \approx `r round(log(1/4),2)`$.
+
+<aside>The single sprint benchmark is $\log(\frac12) \approx `r round(log(1/2),2)` as before.</aside>
+
+The benchmark for the full data is a weighted average of the single sprint benchmark and the best-of-three. Note that this means that the match log loss benchmark differs between the training and evaluation splits.
 
 ::::: {.panelset}
 
 ::: {.panel}
 [Accuracy]{.panel-name}
-```{r}
+```{r, echo = FALSE}
 
 bt1_summ <- read_remote_target("bt_summary_bt1.1")
 bt2_summ <- read_remote_target("bt_summary_bt2.1")
 bt3_summ <- read_remote_target("bt_summary_bt3")
 
 bt1_measures <- bt1_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
-  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
+  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
   mutate(
     model = 'bt1',
     model_split = paste(model, "-", split)
@@ -185,16 +294,16 @@ bt1_measures <- bt1_summ %>%
 
 
 bt2_measures <- bt2_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
-  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
+  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
   mutate(
     model = 'bt2',
     model_split = paste(model, "-", split)
   )
 
 bt3_measures <- bt3_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
-  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
+  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
   mutate(
     model = 'bt3',
     model_split = paste(model, "-", split)
@@ -202,10 +311,12 @@ bt3_measures <- bt3_summ %>%
 
 measures <- bind_rows(bt1_measures, bt2_measures, bt3_measures)
 ```
-
+<details>
+<summary>Data</summary>
 ```{r accuracy_table, eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
-  filter(measure == "accuracy")
+  # totals are given in round_id = 6
+  filter(measure == "accuracy", round_id == 6)
 
 accuracy %>% 
   select(model, split,  q5, median, q95) %>%
@@ -214,6 +325,7 @@ accuracy %>%
   kable_styling(full_width = FALSE) %>%
   collapse_rows(1)
 ```
+</details>
 
 ```{r accuracy_plot, echo = FALSE}
 ggplot(accuracy, aes(y=fct_rev(model))) +
@@ -228,24 +340,33 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
         legend.position = "none"
   ) +
   geom_vline(xintercept=0.5, linetype = "dashed", color = infreq_palette["orange"]) + 
-  geom_text(data = tibble(x=0.40,y=0.6,split = 'training', text = 'Benchmark', model = 'bt2'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
+  geom_text(data = tibble(x=0.40,y=0.6,split = 'training', text = 'Benchmark', model = 'bt3'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
 ```
 :::
   
 ::: {.panel}
 [Match Log Loss]{.panel-name}
-
-```{r match_log_loss}
+<details>
+<summary>Data</summary>
+```{r match_log_loss, echo = FALSE}
 log_loss <- measures %>%
-  filter(measure == "match_log_loss")
+  # totals are given in round_id = 6
+  filter(measure == "match_log_loss", round_id == 6)
 
 log_loss %>% 
   select(model, split,  q5, median, q95) %>%
   arrange(split, model) %>%
   kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3)
 ```
+</details>
 
 ```{r log_loss_plot, echo = FALSE}
+
+match_log_loss_benchmark <- matches %>%
+  mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
+  group_by(split) %>%
+  summarise(benchmark = mean(benchmark))
+
 ggplot(log_loss,aes(y=fct_rev(model))) +
   facet_grid(rows = vars(split)) +
   geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
@@ -257,11 +378,437 @@ ggplot(log_loss,aes(y=fct_rev(model))) +
         strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
         legend.position = "none"
   ) +
-  geom_vline(xintercept=log(1/2), linetype = "dashed", color=infreq_palette["orange"]) + 
-  geom_text(data = tibble(x=log(1/2) - 0.2,y=0.6,split = 'training', text = 'Benchmark', model = 'bt2'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
+  geom_vline(data = match_log_loss_benchmark, aes(xintercept=benchmark), linetype = "dashed", color=infreq_palette["orange"])
+```
+:::
+
+:::::
+
+
+Changing the likelihood has had a minimal impact on the evaluation metrics - with all three models defined to date performing similarly.
+
+```{r,echo=FALSE}
+sprint_count <- matches %>%
+  filter(split == 'training') %>%
+  count(sprints) %>%
+  mutate(prop = n/sum(n))
+```
+In hindsight this is to be expected as the volume of data it impacts is small: `r percent(sprint_count$prop[1], 0)` of the training data are single sprints, for which both likelihoods agree, and only `r percent(sprint_count$prop[3], 0)` have three sprints which is the scenario where the likelihoods differ the most.
+
+I'll carry this likelihood into the future models.
+
+# Home Advantage
+
+A common adaptation ofthe Bradley-Terry model is to add a term to account for home advantage.
+
+I didn't have ready access to a list of each rider's nationality, but as a proxy we can use the nationality of the team they are riding for. I'll consider a rider as being at home if the event is in the country of their team.
+
+<aside>Team nationality data is reported by the UCI [here](https://www.uci.org/track/teams)</aside>
+
+The standard implementation of home advantage replaces the fixed strength $\alpha_r$, with a strength that varies by match:
+
+
+$$
+\alpha_{r}^{(m)} =
+\begin{cases}
+ \alpha_r + \eta, &\text{ if $r$ is at home in match $m$,} \\
+ \alpha_r , & \text{otherwise.}
+ \end{cases}
+$$
+
+<aside> $\eta$ was chosen as its the Greek alphabet equivalent of $h$, for home.</aside>
+
+This assumes that all athletes feel the same advantage when competing at home. This seems unlikely to me, so I'll account for this in my model.
+
+## BT4 Hierarchical Home Advantage
+
+```{r, echo = FALSE}
+matches <- read_remote_target("matches")
+
+home <- bind_rows(
+  matches %>% select(rider_id = winner_id, home = winner_at_home),
+  matches %>% select(rider_id = loser_id, home = loser_at_home)
+  ) %>%
+  group_by(rider_id) %>% summarise(matches = n(), home_matches = sum(home))
+```
+
+Hierarchical modelling allows us to vary the home advantage between riders, whilst accounting for the fact that we don't have enough data to estimate each athlete's effect independently.
+
+<aside>Only `r percent(sum(home$home_matches)/sum(home$matches),0)` of matches feature a home athlete, and  `r percent(1-nrow(home %>% filter(home_matches > 0))/nrow(home),0)` athletes have never contested a home match.</aside>
+
+The idea is to assume that there is some *average* effect, $\eta$, and that each rider then deviates from this average by some ammount, $\theta_r$
+
+$$\eta_r = \eta + \theta_r.$$
+
+To help us define priors, I'll consider the scenario where two riders with equal strength are competing, and suppose one is at home. Whats a reasonable guess as to the impact this will have?
+
+No home advantage would mean they win with probability 0.5. I'd expect the home advantage effect will increase this to somewhere between 0.55 and 0.75, so will choose a prior on $\eta$ that puts weight on this range.
+
+We also need a prior for the rider deviations $\theta_r$. Its reasonable to suppose this is normally distributed with mean 0, but we don't know the appropriate standard deviation... and when in doubt, create a parameter!
+
+I'll let $\upsilon$ be this unknown standard deviation, so that $\theta_r \sim \text{Normal}(0,\upsilon)$, and put a prior on $\upsilon$. 
+
+Experimentation suggests appropriate choices of priors of 
+$\eta \sim \Gamma(2,4)$ and $\upsilon \sim \text{HalfNormal}(0,0.2)$.
+
+
+::::: {.panelset}
+
+::: {.panel}
+[Parameter Priors]{.panel-name}
+
+```{r avg_home_advantage_prior}
+  home_effect_samples <- tibble(
+    eta = rgamma(1e05, shape = 2, rate = 4),
+    upsilon = abs(rnorm(1e05, mean = 0, sd =0.2))
+  ) %>%
+  mutate(
+    p_win_avg = plogis(eta),
+    theta = rnorm(n(), mean = 0, sd = upsilon),
+    eta_theta = eta + theta,
+    p_win_rider = plogis(eta_theta)
+  )
+
+home_param_prior <- home_effect_samples %>%
+  # convert to long format 
+  select(eta, theta) %>%
+  gather(measure, sample, eta, theta) %>%
+  mutate(measure = if_else(measure == "eta", 'Average', 'Rider Deviation'))
+
+ggplot(home_param_prior, aes(sample, y = ..density.., fill = measure)) +
+  geom_histogram(binwidth = 0.03, color = infreq_palette["beige"]) +
+  # scale_x_continuous(breaks = seq(0, 1, by=0.1)) +
+  coord_cartesian(xlim = c(-1,2)) +
+  labs(x = "Home Advantage", y = "") +
+  facet_grid(rows = vars(measure)) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),  strip.text.y = element_text(size = 14),
+    legend.position = "none"
+  )
+```
+:::
+
+::: {.panel}
+[Home Win Prior]{.panel-name}
+```{r}
+home_wins_prior <- home_effect_samples %>%
+  # convert to long format 
+  select(p_win_avg, p_win_rider) %>%
+  gather(measure, sample, p_win_avg, p_win_rider) %>%
+  mutate(measure = if_else(measure == "p_win_avg", 'Average', 'Rider'))
+  
+ggplot(home_wins_prior, aes(sample, y = ..density.., fill = measure)) +
+  geom_histogram(binwidth = 0.01, color = infreq_palette["beige"]) +
+  scale_x_continuous(breaks = seq(0, 1, by=0.1)) +
+  coord_cartesian(xlim = c(0,1)) +
+  labs(x = "Probability Home Rider Wins", y = "") +
+  facet_grid(rows = vars(measure)) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),  strip.text.y = element_text(size = 14)
+  )
+```
+:::
+
+:::::
+
+
+I'll follow the convention I introduced above, denoting $\alpha_r^{(m)}$ for a strength that varies by match. Further I'll let $\mathbf{1}_r^{(m)}$ denote the indicator that equals 1 if the rider, r, is at home in the match, m.
+
+::::: {.panelset}
+
+
+::: {.panel}
+[BT4]{.panel-name}
+$$
+\begin{align*}
+\bf{\text{Priors}} \\
+\sigma & \sim \text{Gamma}(80,60) \\
+\alpha_r & \sim \text{Normal}(0,\sigma) \\
+\\
+\eta & \sim \text{Gamma}(2,4) \\
+\upsilon & \sim \text{Normal}(0, 0.2) \\
+\theta_r & \sim \text{Normal}(0,\upsilon) \\
+\\
+\bf{\text{Likelihood}}\\
+\alpha_r^{(m)} & = \alpha_r + (\eta + \theta_r)\mathbf{\large 1}_r^{(m)}\\
+\alpha_w^{(m)} - \alpha_l^{(m)} | S & \sim L_{\text{match}}(\alpha_r^{(m)} - \alpha_s^{(m)} | S)
+\end{align*}
+$$
+:::
+
+::: {.panel}
+[Example Data]{.panel-name}
+```{r}
+# read match data from remote _target store
+matches <- read_remote_target("matches")
+
+matches_sample <-  matches %>%
+  filter(event == '2020 UCI TRACK WORLD CYCLING CHAMPIONSHIPS', round == 'Finals', gender == 'Women') %>%
+  mutate(across(everything(), as.character)) %>%
+  select(event, date, gender, round, rider_1,rider_2,rider_id_1,rider_id_2, winner_id,loser_id, sprints, winner_at_home, loser_at_home) %>%
+  slice(1)
+
+matches_sample <- tibble(Field = names(matches_sample), Example = unlist(matches_sample[1,]))
+matches_sample %>%
+  kable("pipe") %>%
+  kable_styling(full_width=FALSE, bootstrap_options = c("striped", "hover", "condensed"),font_size = 10)
+```
+:::
+
+::: {.panel}
+[Stan code]{.panel-name}
+
+```{r, echo = FALSE, code_folding = FALSE}
+writeLines(readLines(paste0(remote_project_path, 'stan/bt4.stan')))
+```
+
+:::
+  
+:::::
+
+<aside> **BT4**. Home advantage.</aside>
+  
+In Tokyo 2020 there's a single female Japanese athlete, Yuka Kobayashi. The plot below shows the posterior ranges for the rider strengths, and shows the impact that the home advantage is expected to have (in blue).
+
+<aside>The men's field has a larger cohort of Japanese athletes</aside>
+
+```{r, fig.height = 8, warning = FALSE, message = FALSE}
+bt4_draws <- read_remote_target("bt_draws_bt4")
+
+japanese_riders <- olympic_riders %>% filter(Nationality == 'Japan') %>%
+  mutate(variable = paste0('theta[', rider_id,']'))
+
+bt4_draws <- bt4_draws %>%
+  gather(variable, value, -starts_with("."))
+
+bt4_rider_home_effect <- left_join(japanese_riders, bt4_draws) %>%
+  select(-variable) %>%
+  rename(rider_home_effect = value)
+
+bt4_home_effect <- bt4_draws %>%
+  filter(str_detect(variable, '^eta')) %>%
+  rename(home_effect = value) %>%
+  select(-variable) %>%
+  left_join(bt4_rider_home_effect) %>%
+  mutate(rider_home_effect = rider_home_effect + home_effect)
+
+bt4_strengths <- bt4_draws %>%
+  filter(str_detect(variable, 'alpha')) %>%
+  mutate(rider_id = str_match(variable, '\\[(.*)\\]')[,2] %>% as.numeric()) %>%
+  left_join(olympic_riders, .) %>%
+  left_join(bt4_home_effect) %>%
+  replace_na(list(rider_home_effect = 0))
+
+bt4_strength_summ <- bt4_strengths %>%
+  group_by(rider_name) %>%
+  summarise(
+    q5 = quantile(value, 0.05),
+    median = quantile(value, 0.5),
+    q95 = quantile(value, 0.95),
+    ha_q5 = quantile(rider_home_effect, 0.05),
+    ha_q95 = quantile(rider_home_effect, 0.95),
+  ) %>%
+  mutate(rider_name = fct_reorder(rider_name,median))
+
+ggplot(bt4_strength_summ) +
+  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name), color = infreq_palette["orange"], alpha = 0.3) +
+  geom_segment(aes(x=ha_q5,xend=ha_q95,y=rider_name,yend=rider_name), color = infreq_palette["darkblue"], size = 1.1) +
+  labs(y="",x="Strength, α")
+```
+
+Unfortunately for Yuka, it would appear that the home advantage is unlikely to be sufficient to help her secure a medal.
+
+In hindsight home advantage is not likely to have a significant impact on the evaluation metrics as so few of the matches have a home athlete; this is confirmed in the evaluation metrics below.
+
+::::: {.panelset}
+
+::: {.panel}
+[Accuracy]{.panel-name}
+```{r}
+bt4_summ <- read_remote_target("bt_summary_bt4")
+
+bt4_measures <- bt4_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
+  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  mutate(
+    model = 'bt4',
+    model_split = paste(model, "-", split)
+  )
+
+measures <- bind_rows(measures, bt4_measures)
+```
+
+<details>
+<summary>Data</summary>
+```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
+accuracy <- measures %>%
+  # totals are given in round_id = 6
+  filter(measure == "accuracy", round_id == 6)
+
+accuracy %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3) %>%
+  kable_styling(full_width = FALSE) %>%
+  collapse_rows(1)
+```
+</details>
+
+```{r  ref.label=c('accuracy_plot'), echo = FALSE}
+ggplot(accuracy, aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(0,1)) +
+  labs(x= "Accuracy", y="") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(xintercept=0.5, linetype = "dashed", color = infreq_palette["orange"]) + 
+  geom_text(data = tibble(x=0.40,y=0.6,split = 'training', text = 'Benchmark', model = 'bt3'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
 ```
 :::
   
+::: {.panel}
+[Match Log Loss]{.panel-name}
+
+
+<details>
+<summary>Data</summary>
+```{r ref.label=c('match_log_loss'), echo = FALSE}
+log_loss <- measures %>%
+  # totals are given in round_id = 6
+  filter(measure == "match_log_loss", round_id == 6)
+
+log_loss %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3)
+```
+</details>
+
+```{r ref.label=c('log_loss_plot'), echo = FALSE}
+
+match_log_loss_benchmark <- matches %>%
+  mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
+  group_by(split) %>%
+  summarise(benchmark = mean(benchmark))
+
+ggplot(log_loss,aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(-1.3,0)) +
+  labs(x= "Log Loss", y = "") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(data = match_log_loss_benchmark, aes(xintercept=benchmark), linetype = "dashed", color=infreq_palette["orange"])
+```
+:::
+
+:::::
+
+
+# Time Varying Strengths
+
+Upto now I've made the assumption that athlete's strength does not vary over time. Given the data spans a period of multiple years this is unlikely to hold.
+
+
+::::: {.panelset}
+
+::: {.panel}
+[Accuracy]{.panel-name}
+```{r}
+bt5_summ <- read_remote_target("bt_summary_bt5")
+
+bt5_measures <- bt5_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
+  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  mutate(
+    model = 'bt5',
+    model_split = paste(model, "-", split)
+  )
+
+measures <- bind_rows(measures, bt5_measures)
+```
+
+```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
+accuracy <- measures %>%
+  # totals are given in round_id = 6
+  filter(measure == "accuracy", round_id == 6)
+
+accuracy %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3) %>%
+  kable_styling(full_width = FALSE) %>%
+  collapse_rows(1)
+```
+
+```{r  ref.label=c('accuracy_plot'), echo = FALSE}
+ggplot(accuracy, aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(0,1)) +
+  labs(x= "Accuracy", y="") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(xintercept=0.5, linetype = "dashed", color = infreq_palette["orange"]) + 
+  geom_text(data = tibble(x=0.40,y=0.6,split = 'training', text = 'Benchmark', model = 'bt3'), aes(x=x,label=text, color = infreq_palette["orange"],size=3))
+```
+:::
+  
+::: {.panel}
+[Match Log Loss]{.panel-name}
+
+```{r ref.label=c('match_log_loss')}
+log_loss <- measures %>%
+  # totals are given in round_id = 6
+  filter(measure == "match_log_loss", round_id == 6)
+
+log_loss %>% 
+  select(model, split,  q5, median, q95) %>%
+  arrange(split, model) %>%
+  kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3)
+```
+
+```{r ref.label=c('log_loss_plot'), echo = FALSE}
+
+match_log_loss_benchmark <- matches %>%
+  mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
+  group_by(split) %>%
+  summarise(benchmark = mean(benchmark))
+
+ggplot(log_loss,aes(y=fct_rev(model))) +
+  facet_grid(rows = vars(split)) +
+  geom_point(aes(x=median), color= infreq_palette["darkblue"], size =2) +
+  geom_segment(aes(x=q5,xend=q95,yend=model), color= infreq_palette["darkblue"]) +
+  scale_x_continuous(limits = c(-1.3,0)) +
+  labs(x= "Log Loss", y = "") +
+  theme(axis.line.y=element_blank(), axis.text.y=element_text(size=12),
+        strip.text=element_text(size = 14, color = infreq_palette["darkblue"]),
+        strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+        legend.position = "none"
+  ) +
+  geom_vline(data = match_log_loss_benchmark, aes(xintercept=benchmark), linetype = "dashed", color=infreq_palette["orange"])
+```
+:::
+
 :::::
 
 
