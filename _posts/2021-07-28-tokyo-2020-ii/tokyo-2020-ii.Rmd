@@ -522,7 +522,6 @@ I'll follow the convention I introduced above, denoting $\alpha_r^{(m)}$ for a s
 
 ::::: {.panelset}
 
-
 ::: {.panel}
 [BT4]{.panel-name}
 $$
@@ -630,7 +629,7 @@ In hindsight home advantage is not likely to have a significant impact on the ev
 
 ::: {.panel}
 [Accuracy]{.panel-name}
-```{r}
+```{r, echo = FALSE}
 bt4_summ <- read_remote_target("bt_summary_bt4")
 
 bt4_measures <- bt4_summ %>%
@@ -724,12 +723,148 @@ ggplot(log_loss,aes(y=fct_rev(model))) +
 
 Upto now I've made the assumption that athlete's strength does not vary over time. Given the data spans a period of multiple years this is unlikely to hold.
 
+In my early attempts to introduce a time dependent component I considered a random walk dynamic, supposing that
+
+$$ \alpha_r^{(m)} = \alpha_r^{(m-1)} + \text{Normal}(0, \sigma_{m}).$$
+
+where the standard deviation $\sigma_m$ depends on the time since the last match. A standard continuos time random walk would set this to be proportionate to the square root of the time difference to the last match.
+
+<aside>This is a continuous time equivalent of an AR(1) process.</aside>
+
+The problem with the model as defined above is that it requires that we define some initial position, $\alpha_r^{(0)}$ from which successive strengths move away from: the further we extrapolate time, the greater the uncertainty. This is appropriate if there is some fixed time point where we *know* the riders' strengths - but this is not the case.
+
+To account for this a more sophisticated approach is required - and for that I'll make use of Gaussian Processes (GPs). I won't fully introduce GPs here, but they provide a framework for putting a distribution on functions, with the property that the value that the function takes at any finite subset of points are Normally distributed with some (known) covariance matrix.
+
+<aside> Görtler et al. have a really nice introduction, along with helpful interative plots [here](https://distill.pub/2019/visual-exploration-gaussian-processes/). </aside>
+
+GPs are incredibly flexible tools, which also makes them somewhat fiddly to fit! I'll choose a relatively simple GP, with parameters that determine how far the random function is allowed to deviate from its mean (the *magnitude*) and how wiggly it can be (the *lengthscale*).
+
+<aside>I'm using the squared exponential kernel.</aside>
+
+I'll admit now I haven't had a chance to fully rationalise my position on priors for the Gaussian Process (which might go some way to explaining the model performance below!) - so won't labour the explanation for the decision. Suffice it to say that I wanted to control the magnitude so that rider strengths wouldn't fluctuate by more than $\pm 1$ over their career wouldn't fluctuate significantly within a given year.
+
+<aside>These principles are captured by the priors $\tau_0 \sim \text{InvGamma}(11,1)$ and $\rho_0 \sim \text{InvGamma}(6,3)$ below.</aside>
+
+::::: {.panelset}
+
+
+::: {.panel}
+[BT5]{.panel-name}
+$$
+\begin{align*}
+\bf{\text{Priors}} \\
+\sigma & \sim \text{Gamma}(80,60) \\
+\alpha_r & \sim \text{Normal}(0,\sigma) \\
+\\
+\eta & \sim \text{Gamma}(2,4) \\
+\upsilon & \sim \text{Normal}(0, 0.2) \\
+\theta_r & \sim \text{Normal}(0,\upsilon) \\
+\\
+\tau_0 & \sim \text{InvGamma}(11,1)\\
+\rho_0 & \sim \text{InvGamma}(6,3)\\
+\tau_r & \sim \text{Normal}(\tau_0, 0.05)\\
+\rho_r & \sim \text{Normal}(\rho_0, 0.1)\\
+f_r^{(m)} & \sim \text{GaussianProcess}(0, K^{SE}(\tau_r, \rho_r)) \\
+\\
+\bf{\text{Likelihood}}\\
+\alpha_r^{(m)} & = \alpha_r + (\eta + \theta_r)\mathbf{\large 1}_r^{(m)} + f_r^{(m)}\\
+\alpha_w^{(m)} - \alpha_l^{(m)} | S & \sim L_{\text{match}}(\alpha_r^{(m)} - \alpha_s^{(m)} | S)
+\end{align*}
+$$
+:::
+
+::: {.panel}
+
+[Example Data]{.panel-name}
+
+To fit this model two data sets were required. The match data now has additional columns indicating a date indiex for each rider
+```{r}
+# read match data from remote _target store
+matches <- read_remote_target("matches")
+
+matches_sample <-  matches %>%
+  filter(event == '2020 UCI TRACK WORLD CYCLING CHAMPIONSHIPS', round == 'Finals', gender == 'Women') %>%
+  mutate(across(everything(), as.character)) %>%
+  select(event, date, gender, round, rider_1,rider_2,rider_id_1,rider_id_2, winner_id,loser_id, sprints, winner_at_home, loser_at_home,
+         winner_date_no, loser_date_no) %>%
+  slice(1)
+
+matches_sample <- tibble(Field = names(matches_sample), Example = unlist(matches_sample[1,]))
+matches_sample %>%
+  kable("pipe") %>%
+  kable_styling(full_width=FALSE, bootstrap_options = c("striped", "hover", "condensed"),font_size = 10)
+```
+
+
+These then link to a separate data set that provides information about the dates on which the athlete has raced
+
+```{r}
+rider_days <- read_remote_target("rider_days")
+
+rider_days_sample <-  rider_days[100,] %>%
+  mutate(across(everything(), as.character))
+
+rider_days_sample <- tibble(Field = names(rider_days_sample), Example = unlist(rider_days_sample[1,]))
+rider_days_sample %>%
+  kable("pipe") %>%
+  kable_styling(full_width=FALSE, bootstrap_options = c("striped", "hover", "condensed"),font_size = 10)
+```
+
+:::
+
+::: {.panel}
+[Stan code]{.panel-name}
+
+
+Since the model requires in excess of 100 GPs to be fit, I've made use of the Hilbert space apprimation to GPs analysed by [Riutort-Mayol, et al](https://arxiv.org/pdf/2004.11408.pdf).
+
+A recent [case study](https://avehtari.github.io/casestudies/Motorcycle/motorcycle.html) by Aki Vehtari makes for a lighter introduction.
+
+```{r, echo = FALSE, code_folding = FALSE}
+writeLines(readLines(paste0(remote_project_path, 'stan/bt5.stan')))
+```
+
+:::
+  
+:::::
+
+<aside> **BT5**. Time varying strengths.</aside>
+
+The plot below provides an example of how the Gaussian Process model varies riders strength over time - the bold line shows a central estimate, whilst the background lines show individual draws of the GP (the lines don't appear smooth as sampling is only done on dates when there were races).
+
+```{r}
+rider_days <- read_remote_target("rider_days") %>% mutate(date_index = 1:n())
+
+alphaD_draws <- read_remote_target("bt_draws_bt5")  %>%
+  filter(.draw %% 100 == 0) %>%
+  gather(variable, value, -starts_with(".")) %>%
+  filter(str_detect(variable, 'alphaD')) %>%
+  mutate(date_index = str_match(variable, "\\[(.*)\\]")[,2] %>% as.numeric()) %>%
+  left_join(rider_days) %>%
+  left_join(riders) %>%
+  filter(rider_name %in% c("LEE WAI SZE", "VOINOVA ANASTASIIA", "HINZE EMMA"))
+
+ggplot() +
+  geom_line(data = alphaD_draws %>% filter(rider_name == 'LEE WAI SZE'), aes(x=date, y=value,color=rider_name, group = .draw), alpha = 0.1) +
+  geom_smooth(data = alphaD_draws %>% filter(rider_name == 'LEE WAI SZE'), aes(x=date, y=value,color=rider_name), se = FALSE, size = 2) +
+  
+  geom_line(data = alphaD_draws %>% filter(rider_name == 'HINZE EMMA'), aes(x=date, y=value,color=rider_name, group = .draw), alpha = 0.1) +
+  geom_smooth(data = alphaD_draws %>% filter(rider_name == 'HINZE EMMA'), aes(x=date, y=value,color=rider_name), se = FALSE, size = 2) +
+  
+  geom_line(data = alphaD_draws %>% filter(rider_name == "VOINOVA ANASTASIIA"), aes(x=date, y=value,color=rider_name, group = .draw), alpha = 0.1) +
+  geom_smooth(data = alphaD_draws %>% filter(rider_name == "VOINOVA ANASTASIIA"), aes(x=date, y=value,color=rider_name), se = FALSE, size = 2) +
+  theme(legend.title = element_blank()) +
+  ylab("Strength") + xlab("")
+```
+
+The model summary below indicates that introducing the GP appears to lower the accuracy on the evaluation data: although in reality this is the difference of just a single match.
 
 ::::: {.panelset}
 
 ::: {.panel}
+
 [Accuracy]{.panel-name}
-```{r}
+```{r, echo = FALSE}
 bt5_summ <- read_remote_target("bt_summary_bt5")
 
 bt5_measures <- bt5_summ %>%
@@ -743,6 +878,8 @@ bt5_measures <- bt5_summ %>%
 measures <- bind_rows(measures, bt5_measures)
 ```
 
+<details>
+<summary>Data</summary>
 ```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
   # totals are given in round_id = 6
@@ -755,6 +892,7 @@ accuracy %>%
   kable_styling(full_width = FALSE) %>%
   collapse_rows(1)
 ```
+</details>
 
 ```{r  ref.label=c('accuracy_plot'), echo = FALSE}
 ggplot(accuracy, aes(y=fct_rev(model))) +
@@ -776,6 +914,8 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
 ::: {.panel}
 [Match Log Loss]{.panel-name}
 
+<details>
+<summary>Data</summary>
 ```{r ref.label=c('match_log_loss')}
 log_loss <- measures %>%
   # totals are given in round_id = 6
@@ -786,6 +926,7 @@ log_loss %>%
   arrange(split, model) %>%
   kable("pipe", col.names =c("Model", "Split", "5%", "50% (Median)", "95%"), digits =3)
 ```
+</details>
 
 ```{r ref.label=c('log_loss_plot'), echo = FALSE}
 
@@ -811,6 +952,18 @@ ggplot(log_loss,aes(y=fct_rev(model))) +
 
 :::::
 
+
+Perhaps against better judgement I'm going to retain the GP contribution in the model going forward. This might be the result of bias - i.e. my reluctance to not put to use the effort I made - but I'd like to think I have a few rational reaosons:
+
+* The difference in accuracy is negligible, and given the small sample size of the evaluation data I don't consider this to be particularly reliable.
+
+* The worsening in the log loss is due to some of the more extreme strengths assigned to Lee Wai Sze at her peak. The fit suggests she is now on a decline, and if that is the case we want the model to account for this as her data will be the single biggest driver of the odds.
+
+<aside>Lee Wai Sze is reaching retirement, and in addition is [reported](https://cyclingtips.com/2020/03/the-sprinter-her-struggle-and-the-storm-back-home/) to have had challenges off the bike.</aside>
+
+* The next, and final, model adaptation will reduce the contribution of the Gaussian Process.
+
+I'll reflect on the decision to retain the GP term once I've made my predictions, and seen the results!
 
 ## Comments
 
