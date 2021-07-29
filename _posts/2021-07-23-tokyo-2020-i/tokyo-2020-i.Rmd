@@ -171,7 +171,7 @@ There is a challenge however, as this solution won't be unique: any translation 
 
 ### The Bayesian Bradley-Terry Model
 
-Rather than following the frequentist approach, I'll fit a Bayesian Bradley-Terry model. My general rationale for working with Bayesian models is [here](www.infreq.com/about/#why-infrequently-frequentist), but in this instance there's an added incentive as it opens an alternative method to resolving the identifiability issue above.
+Rather than following the frequentist approach, I'll fit a Bayesian Bradley-Terry model. My general rationale for working with Bayesian models is [here](https://www.infreq.com/about#why-infrequently-frequentist), but in this instance there's an added incentive as it opens an alternative method to resolving the identifiability issue above.
 
 The idea is that rather than forcing the coefficients to sum to 0, we can use priors on the rider strengths that helps the likelihood to focus on one specific translation over all others. In our case we'll assume athlete strengths are normally distributed, with mean $0$, which will lean the model towards configurations with $\sum_r \alpha_r = 0$, without the need to code up this constraint explicitly.
 
@@ -228,7 +228,7 @@ writeLines(readLines(paste0(remote_project_path, 'stan/bt1.stan')))
 
 Throughout this series I'll fit the models using [Stan](https://mc-stan.org/). The code for the model is available in the tab above. In these posts I'll focus less on the implementation, and more on the outputs of the models.
 
-<aside>The full model code, including the R pipeline to handle multiple models, is [here](www.github.com/odaniel1/track-cycling).</aside>
+<aside>The full model code, including the R pipeline to handle multiple models, is [here](https://github.com/odaniel1/track-cycling/tree/targets).</aside>
   
 The plot below shows the posterior 90% credible intervals for each rider's strength, for clarity I've filtered the data down to those riders who have competed since the start of 2020.
 

@@ -1,8 +1,8 @@
 ---
 title: "Tokyo 2020 Betting II: Model Refinement and Feature Engineering"
 description: |
-  In this second post of the series, I'll adapt the Bradley-Terry model to a custom best-of-three likelihood to better capture the event dynamics, before integrating new data fields to boost model performance.
-date: 07-28-2021
+  The second post in a series building towards betting on the Olympic track cycling. This time I'll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance.
+date: 07-29-2021
 preview: img/best-of-three.png
 output:
   distill::distill_article:
@@ -13,6 +13,7 @@ output:
 categories:
   - Bayesian
   - Cycling
+  - Gaussian Processes
 ---
 
 ```{r setup, include=FALSE}
@@ -51,17 +52,15 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 [Last time](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/) I introduced the basic model I'll be using to predict the results of the track cycling Individual Sprint at Tokyo 2020.
 
-This post will pick up where that ended, with the focus turning to building on the basic model: adapting it to handle more of the specifics of track cycling.
+This post will pick up where that ended, with the focus turning to building on the basic model: adapting it to handle more of the specifics of the sport.
 
-I'll present the model developments in the order I made them - rather than order of impact. In the conclusion I'll reflect on how I could have improved my approach to prioritising the developments.
-
-The table below summarises the changes I'll explore, the first two were presented in the first post:
+The table below summarises the changes I'll explore:
 
 ```{r, echo = FALSE}
 model_list <- read_remote_target("model_list")
 
 model_list %>% 
-  filter(!str_detect(model_name, "\\.\\d+"), model_name != "bt_final") %>%
+  filter(!str_detect(model_name, "\\.\\d+"), model_name != "bt_final", model_name != "gp_prior") %>%
   transmute(
     Post = if_else(model_name %in% c("bt1", "bt2"), 'Tokyo 2020 Betting I', 'Tokyo 2020 Betting II'),
     Model = model_name,
@@ -71,6 +70,10 @@ model_list %>%
   kable_styling(full_width = FALSE) %>%
   collapse_rows(1, valign = "top")
 ```
+
+<aside>The first two were covered in the previous post.</aside>
+
+I'll present the model developments in the order I made them - which matches the above - rather than the level of impact they have on evaluation metrics. In the conclusion I'll reflect on how I could have improved my approach to prioritising the developments.
 
 ### Assumptions
 This post makes some assumptions about you!
@@ -87,18 +90,17 @@ The model variants will rely on a few technical tools that I'll recap, but not f
 
 If you're interested in reading the underlying code, this is in R and Stan.
 
+<aside>The full model code, including the R pipeline to handle multiple models, is [here](https://github.com/odaniel1/track-cycling/tree/targets).</aside>
 
 ## The Match Likelihood
 
-The Bradley-Terry model assumes matches is either won or lost, with no delineation of the *scale* of a win.
+The Bradley-Terry model assumes matches are won or lost, with no delineation of the *scale* of a win.
 
 In the early heats of the individual sprint this is an accurate assumption: the format is a knockout where a single sprint is contested.
 
-From the quarterfinals, matches are contested in a best-of-three format which introduces a scale to winning.
+From the quarterfinals, matches are contested in a best-of-three format which introduces a scale to winning: if $p$ is the probability that a given athlete wins a single sprint, the outcomes that they win a best-of-three match are:
 
-Let $p$ be the probability that a given athlete will win a single sprint. The possible outcomes that they win a best-of-three match are:
-
-| Scenario | Sprints Contested | Prob. Occurence |
+| Scenario | Sprints Contested | Prob. Occurrence |
 |---|:-:|:-:|
 | Wins first two sprints outright | 2 |  $p^2$ |
 | Wins first and third, loses second | 3 | $p(1-p)p$ |
@@ -152,15 +154,17 @@ p_best_of_three
 ggsave('img/best-of-three.png', plot = p_best_of_three, device = 'png', width = 12, height = 10, units = "cm")
 ```
 
-The best-of-three format can be considered *fairer* than a single sprint, as it increases the probability that the stronger athlete wins: though for values of $p$ near the mid-point or either extreme, the difference is only slight. 
+The best-of-three format can be considered *fairer* than a single sprint, as it increases the probability that the stronger athlete wins.
 
-To account for this format I'll introduce a custom likelihood. For early rounds this will be exactly as before, but for later rounds will take into account the best-of-three format.
+I'll adapt the Bradley-Terry model to use a custom likelihood: in early rounds this will be as before, but for later rounds it will take into account the best-of-three format.
 
 One convenience I'll introduce is to formulate the model from the perspective of the winning rider. In words the likelihood I'll consider is: 
 
 *Given that the winning athlete, $w$, beat the loser, $l$, in $S$ sprints: how likely is it that the strength difference between them is $\delta = \alpha_w - \alpha_l$?*
 
-If we denote $p_\delta = \text{logit}^{-1}(\delta)$ then the likelihood is
+To simplify the formula for the likelihood I'll let $p_\delta = \text{logit}^{-1}(\delta)$ which, as covered in the last post, is the probability of winning a single sprint given the strength difference $\delta$.
+
+The match likelihood is then defined as:
 
 $$
 L_{\text{match}}\big(\alpha_w - \alpha_l = \delta \,  |\,  S = s\big) =
@@ -173,7 +177,7 @@ $$
 
 The formula above is not a true likelihood per se, I'm using two convenient properties of the race format and the data, that allow this reduced definition:
 
-Firstly, the case $s=1$ gets envoked on a separate subset of the data to the cases $s=2,\,3$. So really this is a *separate* likelihood (equivalent to the bernoulli, logistic regression, model). Combining the two scenarios in one formula is a convenience as I can fit all the data to one model, rather than splitting out the cases.
+Firstly, the case $s=1$ gets invoked on a separate subset of the data to the cases $s=2,\,3$. So really this is a *separate* likelihood (equivalent to the Bernoulli, logistic regression, model). Combining the two scenarios in one formula is a convenience as I can fit all the data to one model, rather than splitting out the cases.
 
 Secondly, both likelihoods ($s=1$ case, and $s=2,3$) are presented from the perspective of the winning rider: i.e. we don't have the cases $s=-1,-2,-3$. In reality these cases do exist - but by feeding the model data from the winning perspective the other scenarios won't be induced.
 
@@ -258,13 +262,11 @@ There's a compelling case for Lee Wai Sze to win gold - though this is based on 
 
 ### Match Performance Metrics
 
-In light of changing the likelihood, its worth reviewing the evaluation measures I'm using.
+In light of changing the likelihood, its worth reviewing the evaluation metrics I'm using.
 
-For model accuracy should we assess how many separate sprints are correctly predicted, or the overall outcome of the matches? I'll stick with match outcomes, since when applying the model this will be the measure of interest.
+I can either measure accuracy by the proportion of separate sprints that are correctly predicted, or the proportion of matches. I'll stick with match outcomes, since when applying the model this will be the measure of interest.
 
-The log-loss metric is intrinsicly linked to the likelihood of the model (its the average log likelihood of the data), so we should revise this to use the new likelihood.
-
-In this revised metric the benchmark based on random guessing also needs to be reassessed.
+The log-loss metric is intrinsically linked to the likelihood of the model (its the average log likelihood of the data), so we should revise this to use the new likelihood. This will also need a revised benchmark.
 
 For a best-of-three match there are four possible outcomes (either athlete winning in either 2 or 3 sprints), so a random guessing strategy has a log loss of $\log(\textstyle \frac14) \approx `r round(log(1/4),2)`$.
 
@@ -391,15 +393,15 @@ sprint_count <- matches %>%
   count(sprints) %>%
   mutate(prop = n/sum(n))
 ```
-In hindsight this is to be expected as the volume of data it impacts is small: `r percent(sprint_count$prop[1], 0)` of the training data are single sprints, for which both likelihoods agree, and only `r percent(sprint_count$prop[3], 0)` have three sprints which is the scenario where the likelihoods differ the most.
+In hindsight this is to be expected as the volume of data that is evaluated differently under the revised likelihood is small: `r percent(sprint_count$prop[1], 0)` of the training data are single sprints, for which both likelihoods agree, and only `r percent(sprint_count$prop[3], 0)` have three sprints which is the scenario where the likelihoods differ the most.
 
 I'll carry this likelihood into the future models.
 
 ## Home Advantage
 
-A common adaptation ofthe Bradley-Terry model is to add a term to account for home advantage.
+A common adaptation of the Bradley-Terry model is to add a term to account for home advantage.
 
-I didn't have ready access to a list of each rider's nationality, but as a proxy we can use the nationality of the team they are riding for. I'll consider a rider as being at home if the event is in the country of their team.
+I didn't have ready access to a list of each rider nationalities, but as a proxy I will use the nationality of the team they are riding for. I'll consider a rider as being at home if the event is held in the country of their team.
 
 <aside>Team nationality data is reported by the UCI [here](https://www.uci.org/track/teams)</aside>
 
@@ -416,7 +418,7 @@ $$
 
 <aside> $\eta$ was chosen as its the Greek alphabet equivalent of $h$, for home.</aside>
 
-This assumes that all athletes feel the same advantage when competing at home. This seems unlikely to me, so I'll account for this in my model.
+This assumes that all athletes feel the same benefitwhen competing at home, which I think is an over simplification. I'll improve that assumption by using hierarchical modelling.
 
 ```{r, echo = FALSE}
 matches <- read_remote_target("matches")
@@ -432,20 +434,19 @@ Hierarchical modelling allows us to vary the home advantage between riders, whil
 
 <aside>Only `r percent(sum(home$home_matches)/sum(home$matches),0)` of matches feature a home athlete, and  `r percent(1-nrow(home %>% filter(home_matches > 0))/nrow(home),0)` athletes have never contested a home match.</aside>
 
-The idea is to assume that there is some *average* effect, $\eta$, and that each rider then deviates from this average by some ammount, $\theta_r$
+The idea is to assume that there is some *average* effect, $\eta$, and that each rider then deviates from this average by some amount, $\theta_r$
 
 $$\eta_r = \eta + \theta_r.$$
 
-To help us define priors, I'll consider the scenario where two riders with equal strength are competing, and suppose one is at home. Whats a reasonable guess as to the impact this will have?
+To help us define priors, I'll consider the scenario where two riders with equal strength are competing, $\alpha_w - \alpha_l = 0$, and suppose one is at home. How much impact do we expect home advantage will have on the probability of winning?
 
-No home advantage would mean they win with probability 0.5. I'd expect the home advantage effect will increase this to somewhere between 0.55 and 0.75, so will choose a prior on $\eta$ that puts weight on this range.
+No advantage would mean a win probability of 0.5, and I'd expect being at home might increase this to somewhere between 0.55 and 0.75. I can now turn that into a prior on $\eta$.
 
-We also need a prior for the rider deviations $\theta_r$. Its reasonable to suppose this is normally distributed with mean 0, but we don't know the appropriate standard deviation... and when in doubt, create a parameter!
+I also need a prior for the rider deviations $\theta_r$. Its reasonable to suppose this is normally distributed with mean 0, but we don't know the appropriate standard deviation... and when in doubt, create a parameter!
 
 I'll let $\upsilon$ be this unknown standard deviation, so that $\theta_r \sim \text{Normal}(0,\upsilon)$, and put a prior on $\upsilon$. 
 
-Experimentation suggests appropriate choices of priors of 
-$\eta \sim \Gamma(2,4)$ and $\upsilon \sim \text{HalfNormal}(0,0.2)$.
+Experimentation suggests priors $\eta \sim \Gamma(2,4)$ and $\upsilon \sim \text{HalfNormal}(0,0.2)$ align well to my heuristic above.
 
 
 ::::: {.panelset}
@@ -514,12 +515,13 @@ ggplot(home_wins_prior, aes(sample, y = ..density.., fill = measure)) +
 :::::
 
 
-I'll follow the convention I introduced above, denoting $\alpha_r^{(m)}$ for a strength that varies by match. Further I'll let $\mathbf{1}_r^{(m)}$ denote the indicator that equals 1 if the rider, r, is at home in the match, m.
-
 ::::: {.panelset}
 
 ::: {.panel}
 [BT4]{.panel-name}
+
+I'll follow the convention I introduced above, denoting $\alpha_r^{(m)}$ for a strength that varies by match. Further I'll let $\mathbf{1}_r^{(m)}$ denote the indicator that equals 1 if the rider, r, is at home in the match, m.
+
 $$
 \begin{align*}
 \bf{\text{Priors}} \\
@@ -603,23 +605,24 @@ bt4_strengths <- bt4_draws %>%
 bt4_strength_summ <- bt4_strengths %>%
   group_by(rider_name) %>%
   summarise(
+    is_not_home = all(is.na(home_effect )),
     q5 = quantile(value, 0.05),
     median = quantile(value, 0.5),
     q95 = quantile(value, 0.95),
-    ha_q5 = quantile(rider_home_effect, 0.05),
-    ha_q95 = quantile(rider_home_effect, 0.95),
+    ha_q5 = quantile(value + rider_home_effect, 0.05),
+    ha_q95 = quantile(value + rider_home_effect, 0.95),
   ) %>%
   mutate(rider_name = fct_reorder(rider_name,median))
 
 ggplot(bt4_strength_summ) +
-  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name), color = infreq_palette["orange"], alpha = 0.3) +
-  geom_segment(aes(x=ha_q5,xend=ha_q95,y=rider_name,yend=rider_name), color = infreq_palette["darkblue"], size = 1.1) +
+  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name), color = infreq_palette["darkblue"]) +
+  geom_segment(data = bt4_strength_summ %>% filter(is_not_home == FALSE), aes(x=ha_q5,xend=ha_q95,y=rider_name,yend=rider_name), color = infreq_palette["orange"], size = 1.1) +
   labs(y="",x="Strength, α")
 ```
 
 Unfortunately for Yuka, it would appear that the home advantage is unlikely to be sufficient to help her secure a medal.
 
-In hindsight home advantage is not likely to have a significant impact on the evaluation metrics as so few of the matches have a home athlete; this is confirmed in the evaluation metrics below.
+In hindsight home advantage is not likely to have a significant impact on the evaluation metrics as so few of the matches have a home athlete; this is confirmed below.
 
 ::::: {.panelset}
 
@@ -716,7 +719,7 @@ ggplot(log_loss,aes(y=fct_rev(model))) +
 
 ## Time Varying Strengths
 
-Upto now I've made the assumption that the athletes' strengths do not vary over time. Given the data spans a period of multiple years this is a definite limitation in the model.
+Up to now I've made the assumption that the athletes' strengths do not vary over time. Given the data spans a period of multiple years this is a definite limitation in the model.
 
 In my early attempts to introduce a time dependent component I considered a random walk dynamic, supposing that
 
@@ -726,13 +729,13 @@ where the standard deviation $\sigma_m$ depends on the time since the last match
 
 <aside>This is a continuous time equivalent of an AR(1) process.</aside>
 
-The problem with the model as defined above is that it requires that we define some initial position, $\alpha_r^{(0)}$ from which successive strengths move away from, with uncertainty growing over time. This is appropriate if there is some fixed time point where we *know* the riders' strengths - but this is not the case in our situation, infact we generally know less about a riders ability when they first appear in the data.
+The problem with the model as defined above is that it requires that we determine some initial position, $\alpha_r^{(0)}$ from which successive strengths move away from, with uncertainty growing over time. This is appropriate if there is some fixed time point at which we *know* the riders' strengths - but this is not the case in our situation.
 
 To account for this a more sophisticated approach is required - and for that I'll make use of Gaussian Processes (GPs). I won't fully introduce GPs here, but they provide a framework for putting a distribution on functions, with the property that the value that the function takes at any finite subset of points are Normally distributed with some (known) covariance matrix.
 
 <aside> Görtler et al. have a really nice introduction, along with helpful interactive plots [here](https://distill.pub/2019/visual-exploration-gaussian-processes/). </aside>
 
-I'll fit a relatively simple GP, for each athlete's strength at a given date.These will be determined by two parameters (per athlete) that determine how far the athlete's strength is allowed to deviate from its average (the *magnitude*) and how fast it can change (the *lengthscale*).
+I'll fit a relatively simple GP, for each athlete's strength at a given date.These will be determined by two parameters (per athlete) that determine how far the athlete's strength is allowed to deviate from its average (the *magnitude*) and how fast it can change (the *length scale*).
 
 <aside>I'm using the squared exponential kernel.</aside>
 
@@ -793,7 +796,7 @@ $$
 
 [Example Data]{.panel-name}
 
-To fit this model two data sets were required. The match data now has additional columns indicating a date indiex for each rider
+To fit this model two data sets were required. The match data now has additional columns indicating a date index for each rider
 ```{r}
 # read match data from remote _target store
 matches <- read_remote_target("matches")
@@ -830,7 +833,7 @@ rider_days_sample %>%
 [Stan code]{.panel-name}
 
 
-Since the model requires in excess of 100 GPs to be fit, I've made use of the Hilbert space apprimation to GPs analysed by [Riutort-Mayol, et al](https://arxiv.org/pdf/2004.11408.pdf).
+Since the model requires in excess of 100 GPs to be fit, I've made use of the Hilbert space approximation to GPs analysed by [Riutort-Mayol, et al](https://arxiv.org/pdf/2004.11408.pdf).
 
 A recent [case study](https://avehtari.github.io/casestudies/Motorcycle/motorcycle.html) by Aki Vehtari makes for a lighter introduction.
 
@@ -844,9 +847,7 @@ writeLines(readLines(paste0(remote_project_path, 'stan/bt5.stan')))
 
 <aside> **BT5**. Time varying strengths.</aside>
 
-The posterior plots below include not only the uncertainty in the trend term (from the 0 centered GP), but also around the intercept strength term.
-
-<aside>The GP produces smooth changes over time, but the samples appear piecewise linear as samples were only taken on dates with races.</aside>
+The posterior plots below shows how the GP fits pick up changes in the riders strenghts over time - and suggest that Lee Wai Sze's form may be starting to decline.
 
 ```{r}
 rider_days <- read_remote_target("rider_days") %>% mutate(date_index = 1:n())
@@ -987,18 +988,13 @@ The final revision I'll make to the model is to take into account one final dyna
 
 Prior to any individual matches taking place, each athlete completes a sprint on their own (usually a 200m effort, with a flying start). The times for this sprint decide the seeding of the matches: with the fastest rider facing the slowest qualifying rider, and so on.
 
-Assuming that athletes complete the qualfiying round with the aim of being the fastest this will be a good predictor of the pure speed they currently have. The combination of this current form, and their tactical skill (measurable from our historic match data) should combine to improve the model.
+Assuming that athletes complete the qualifying round with the aim of being the fastest this will be a good predictor of the pure speed they currently have. The combination of this current form, and their tactical skill (measurable from our historic match data) should combine to improve the model.
 
 For a given match $m$, I'll denote $q_{r}^{(m)}$ for the time the athlete posted in the qualifying round for the event, and will update the rider's strength for the match to have an additional factor $-\kappa q_{r}^{(m)}$. The parameter $\kappa$ will be fixed across all riders and events.
 
-The reason for using $-\kappa$ rather than $+\kappa$ is to retain the convention that larger parameter values favour the winning rider. To see this we note that the strength difference is
+<aside>The reason for using $-\kappa$ rather than $+\kappa$ is to retain the convention that larger parameter values favour the winning rider.</aside>
 
-$$\delta_{w,l}^{(m)} = \bigg( \alpha_w^{(m)} - \alpha_l^{(m)}\bigg) - \kappa \bigg( q_w^{(m)} - q_l^{(m)}\bigg)$$ 
-So positive $\kappa$ adjusts the strength difference in favour of the faster qualifying rider.
-
-As with a number of the other parameters it makes sense to assume this can vary: since speeds in velodromes are highly dependent on the the conditions it makes sense to allow $\kappa$ to vary between events, so I consider
-
-<aside>Due to differences in air pressure at various altitude/temperature combinations.</aside>
+As with a number of the other parameters it makes sense to assume this can vary: since speeds in velodromes are highly dependent on the the conditions (air pressure, temperature, altitude) so it makes sense to allow $\kappa$ to vary between events. I will therefore consider separate coefficients for each event:
 
 $$ \kappa^{(m)} = \kappa + \phi_{E_m}$$
 where $m$ is a match taking place during event $E_m$.
@@ -1196,9 +1192,6 @@ ggplot(log_loss,aes(y=fct_rev(model))) +
 
 :::::
 
-
-One limitation of this final model is that we won't be able to use its fully predictive power until the qualifying events have taken place - and I'll be looking to make bets both before, and after qualifying. The addition is still however needed - as it helps to regulate the *core* underlying rider strengths, avoiding some of the extremes in earlier models.
-
 Recall that in the first post I defined the prior on the main athlete strengths, $\alpha_r$, with the belief that the odds that the weakest athlete can beat the strongest would be between 1-100 and 1-1,000.
 
 In all our models this prior stopped the model from erring towards really extreme values for these odds - but never brought them down to the scale I believe plausible. The table below summarises the posterior odds under the two latest models, showing that including qualifying data finally makes these extremal odds look plausible.
@@ -1233,36 +1226,67 @@ bind_rows(
 
 <aside> Figures should be read as *1 in ...*</aside>
 
+One limitation of this final model is that we won't be able to use its fully predictive power until the qualifying rounds at Tokyo 2020 have taken place. I'll be looking to make some bets before and after qualifying, so will need to make use of the time dependent strength values from this model fit in the pre-qualifying bets.
 
-## The Final Fit
+## The Final Fit and Reflections
 
 Before wrapping up I'll fit the model one more time, this time using all of the data.
 
-The plot below provides the rider strengths as forecast for the 2nd August 2021 - the week overwhich the Individual Sprint medals will be contested.
+The plot below provides the rider strengths as forecast for the 2nd August 2021 - the week over which the Individual Sprint medals will be contested. Importantly this model not only puts the rider strengths on a tighter scale, but also changes some of the athlete orders.
 
-```{r}
+<aside>Home effects have been included for Japanese athletes, in orange.</aside>
+
+```{r, fig.height = 8, warning = FALSE, message = FALSE}
+
 rider_days <- rider_days %>% mutate(date_id = 1:n())
 
-bt_final_summ <- read_remote_target("bt_summary_bt_final")
+bt_final_draws <- read_remote_target("bt_draws_bt_final")
 
-bt_strength_final_summ <- bt_final_summ %>%
+bt_final_draws <- bt_final_draws %>%
+  gather(variable, value, -starts_with("."))
+
+bt_final_rider_home_effect <- left_join(japanese_riders, bt_final_draws) %>%
+  select(-variable) %>%
+  rename(rider_home_effect = value)
+
+bt_final_home_effect <- bt_final_draws %>%
+  filter(str_detect(variable, '^eta')) %>%
+  rename(home_effect = value) %>%
+  select(-variable) %>%
+  left_join(bt_final_rider_home_effect) %>%
+  mutate(rider_home_effect = rider_home_effect + home_effect)
+
+bt_final_strengths <- bt_final_draws %>%
   filter(str_detect(variable, 'alphaD')) %>%
   mutate(date_id = str_match(variable, '\\[(.*)\\]')[,2] %>% as.numeric()) %>%
   left_join(rider_days) %>%
   left_join(olympic_riders, .) %>%
   filter(date == max(date)) %>%
+  left_join(bt_final_home_effect) %>%
+  replace_na(list(rider_home_effect = 0))
+
+bt_final_strength_summ <- bt_final_strengths %>%
+  group_by(rider_name) %>%
+  summarise(
+    is_not_home = all(is.na(home_effect )),
+    q5 = quantile(value + rider_home_effect, 0.05),
+    median = quantile(value+ rider_home_effect,  0.5),
+    q95 = quantile(value+ rider_home_effect, 0.95)
+  ) %>%
   mutate(rider_name = fct_reorder(rider_name,median))
 
-p_strengths_final <- ggplot(bt_strength_final_summ) +
-  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name), color = infreq_palette["darkblue"]) +
-  labs(y="",x="Strength, α")
-
-p_strengths_final
+ggplot(bt_final_strength_summ, ) +
+  geom_segment(aes(x=q5,xend=q95,y=rider_name,yend=rider_name, color = is_not_home)) +
+  labs(y="",x="Strength, α") +
+  theme(legend.position = "none")
 ```
 
-On reflection perhaps this should have been the first model development I made. The give away that I got my prioritisation wrong is actually visible in my priors: for the qualifying time difference I felt an appropriate prior would swing an otherwise equal match to give the a rider who qualified 0.2 seconds faster aprobability of winning between 0.55 - 0.8; for larger, and still common, differences of 0.4 seconds that grows further.
 
-On the other hand I felt that the impact of the home advantage was likely between 0.55 - 0.75: i.e. in my priors I implicitly made the assumption that qualifying difference has a larger effect size than home advantage - and yet I started by coding up the effect I believed to be less important.
+On reflection the first model development should have been to include the qualifying data - though this is easier to say in hindsight having seen the performance metrics.
+
+Having said this - there is a give away that I got my prioritisation wrong that's visible in my priors. For the qualifying time difference I felt an appropriate prior would swing an otherwise equal match to give the a rider who qualified 0.2 seconds faster a probability of winning between 0.55 - 0.8; for larger, and still common, differences of 0.4 seconds that grows further. On the other hand I felt that the impact of the home advantage was likely between 0.55 - 0.75.
+
+That's to say that my priors implicitly show my expectation was that qualifying difference would have a  larger effect size than home advantage - and yet I started by coding up the effect I believed to be less important.
 
 To be fair there are mitigating reasons - the home advantage is a text-book adaptation of the model whilst the qualifying difference is bespoke to this application - and required further data preparation.
 
@@ -1270,7 +1294,7 @@ The prior on the GP model was on a similar scale - and it felt important to let 
 
 Finally the very early detour to move to the match likelihood was something that principally was the correct change - it does better model the underlying race dynamic - but the key here is how little the change actually has to the model, as the bulk of matches are still single sprints.
 
-So the key take away I'll pull from this is to prioritise my work flow in the order of my prior distributions on effect sizes. Even if the priors turn out to be way off, its a better justificiation than a try-it-and-see attitude.
+So the key take away I'll pull from this is to prioritise my work flow in the order of my prior distributions on effect sizes. Even if the priors turn out to be way off, its a better justification than a try-it-and-see attitude.
 
 Moving on - In the next post I'll take the model as it now stands and turn this into betting odds, ahead of events kicking off in the velodrome.
 
