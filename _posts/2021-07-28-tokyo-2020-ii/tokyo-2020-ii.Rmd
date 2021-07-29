@@ -740,6 +740,27 @@ I'll admit now I haven't had a chance to fully rationalise my position on priors
 
 <aside>These principles are captured by the priors $\tau_0 \sim \text{InvGamma}(11,1)$ and $\rho_0 \sim \text{InvGamma}(6,3)$ below.</aside>
 
+The plot below shows draws from the prior distribution for the GP on a single rider - giving a feel for the types of trends that the prior distribution is putting weight on. The GP I've chosen is *stationary* meaning that at any point the expected value is 0.
+
+```{r}
+rider_days <- read_remote_target("rider_days") %>% mutate(date_index = 1:n())
+
+alphaD_prior_draws <- read_remote_target("bt_draws_gp_prior")  %>%
+      filter(.draw %% 800 == 0 ) %>%
+      gather(variable, value, -starts_with(".")) %>%
+      filter(str_detect(variable, 'f')) %>%
+      mutate(date_index = str_match(variable, "\\[(.*)\\]")[,2] %>% as.numeric()) %>%
+      left_join(rider_days) %>%
+      left_join(riders) %>%
+      filter(rider_name %in% c("LEE WAI SZE", "VOINOVA ANASTASIIA", "HINZE EMMA"))
+
+ggplot(data = alphaD_prior_draws %>% filter(rider_name == 'LEE WAI SZE')) +
+  geom_line( aes(x=date, y=value,color=rider_name, group = .draw), alpha = 0.2) +
+  geom_line(aes(x = date, y = 0), size = 2 ) +
+  ylab("Strength") + xlab("") + theme(legend.position = "none")
+```
+<aside> The GP produces smooth curves - the lack of smoothness in the plot is due to the frequency at which I've sampled the functions for plotting.</aside>
+
 ::::: {.panelset}
 
 
@@ -794,8 +815,6 @@ matches_sample %>%
 These then link to a separate data set that provides information about the dates on which the athlete has raced
 
 ```{r}
-rider_days <- read_remote_target("rider_days")
-
 rider_days_sample <-  rider_days[100,] %>%
   mutate(across(everything(), as.character))
 
@@ -825,7 +844,7 @@ writeLines(readLines(paste0(remote_project_path, 'stan/bt5.stan')))
 
 <aside> **BT5**. Time varying strengths.</aside>
 
-The plot below demonstrates how rider strengths vary over time under the GP odel.The bold line shows a central estimate, whilst the background lines show individual draws of the GP.
+The posterior plots below include not only the uncertainty in the trend term (from the 0 centered GP), but also around the intercept strength term.
 
 <aside>The GP produces smooth changes over time, but the samples appear piecewise linear as samples were only taken on dates with races.</aside>
 
@@ -1219,7 +1238,7 @@ bind_rows(
 
 Before wrapping up I'll fit the model one more time, this time using all of the data.
 
-The plot below provides the rider strengths as forecast for the date of the Individual Sprint qualifying round, 6th August 2021.
+The plot below provides the rider strengths as forecast for the 2nd August 2021 - the week overwhich the Individual Sprint medals will be contested.
 
 ```{r}
 rider_days <- rider_days %>% mutate(date_id = 1:n())
@@ -1240,6 +1259,20 @@ p_strengths_final <- ggplot(bt_strength_final_summ) +
 
 p_strengths_final
 ```
+
+On reflection perhaps this should have been the first model development I made. The give away that I got my prioritisation wrong is actually visible in my priors: for the qualifying time difference I felt an appropriate prior would swing an otherwise equal match to give the a rider who qualified 0.2 seconds faster aprobability of winning between 0.55 - 0.8; for larger, and still common, differences of 0.4 seconds that grows further.
+
+On the other hand I felt that the impact of the home advantage was likely between 0.55 - 0.75: i.e. in my priors I implicitly made the assumption that qualifying difference has a larger effect size than home advantage - and yet I started by coding up the effect I believed to be less important.
+
+To be fair there are mitigating reasons - the home advantage is a text-book adaptation of the model whilst the qualifying difference is bespoke to this application - and required further data preparation.
+
+The prior on the GP model was on a similar scale - and it felt important to let the model pick out trends. However - this is implicitly handled in the qualifying time data (as qualifying time is a predictor of form), and further the GP work required a lot of tweaking for little gain (perhaps some detriment even).
+
+Finally the very early detour to move to the match likelihood was something that principally was the correct change - it does better model the underlying race dynamic - but the key here is how little the change actually has to the model, as the bulk of matches are still single sprints.
+
+So the key take away I'll pull from this is to prioritise my work flow in the order of my prior distributions on effect sizes. Even if the priors turn out to be way off, its a better justificiation than a try-it-and-see attitude.
+
+Moving on - In the next post I'll take the model as it now stands and turn this into betting odds, ahead of events kicking off in the velodrome.
 
 ## Comments
 
