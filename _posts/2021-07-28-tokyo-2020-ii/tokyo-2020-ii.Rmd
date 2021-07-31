@@ -239,8 +239,6 @@ olympic_riders <- read_csv("olympic-athletes.csv") %>%
   mutate(Athlete = if_else(Athlete == 'ANTONOVA NATALIIA', 'ANTONOVA NATALIA', Athlete)) %>%
   inner_join(riders,.,  by = c("rider_name" = "Athlete"), keep = TRUE)
 
-
-
 bt3_summ <- read_remote_target("bt_summary_bt3")
 
 bt3_strength_summ <- bt3_summ %>%
@@ -270,7 +268,7 @@ The log-loss metric is intrinsically linked to the likelihood of the model (its 
 
 For a best-of-three match there are four possible outcomes (either athlete winning in either 2 or 3 sprints), so a random guessing strategy has a log loss of $\log(\textstyle \frac14) \approx `r round(log(1/4),2)`$.
 
-<aside>The single sprint benchmark is $\log(\frac12) \approx `r round(log(1/2),2)` as before.</aside>
+<aside>The single sprint benchmark is $\log(\frac12) \approx `r round(log(1/2),2)`$ as before.</aside>
 
 The benchmark for the full data is a weighted average of the single sprint benchmark and the best-of-three. Note that this means that the match log loss benchmark differs between the training and evaluation splits.
 
@@ -285,25 +283,25 @@ bt2_summ <- read_remote_target("bt_summary_bt2.1")
 bt3_summ <- read_remote_target("bt_summary_bt3")
 
 bt1_measures <- bt1_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
-  mutate(
-    model = 'bt1',
-    model_split = paste(model, "-", split)
-  )
-
-
-bt2_measures <- bt2_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt2',
     model_split = paste(model, "-", split)
   )
 
+
+bt2_measures <- bt2_summ %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
+  mutate(
+    model = 'bt1',
+    model_split = paste(model, "-", split)
+  )
+
 bt3_measures <- bt3_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt3',
     model_split = paste(model, "-", split)
@@ -316,7 +314,7 @@ measures <- bind_rows(bt1_measures, bt2_measures, bt3_measures)
 ```{r accuracy_table, eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "accuracy", round_id == 6)
+  filter(measure == "accuracy")
 
 accuracy %>% 
   select(model, split,  q5, median, q95) %>%
@@ -351,7 +349,7 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
 ```{r match_log_loss, echo = FALSE}
 log_loss <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "match_log_loss", round_id == 6)
+  filter(measure == "match_log_loss")
 
 log_loss %>% 
   select(model, split,  q5, median, q95) %>%
@@ -363,6 +361,7 @@ log_loss %>%
 ```{r log_loss_plot, echo = FALSE}
 
 match_log_loss_benchmark <- matches %>%
+  filter(round != 'Qualifying') %>%
   mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
   group_by(split) %>%
   summarise(benchmark = mean(benchmark))
@@ -424,8 +423,8 @@ This assumes that all athletes feel the same benefitwhen competing at home, whic
 matches <- read_remote_target("matches")
 
 home <- bind_rows(
-  matches %>% select(rider_id = winner_id, home = winner_at_home),
-  matches %>% select(rider_id = loser_id, home = loser_at_home)
+  matches %>% filter(round != 'Qualifying') %>% select(rider_id = winner_id, home = winner_at_home),
+  matches %>% filter(round != 'Qualifying') %>% select(rider_id = loser_id, home = loser_at_home)
   ) %>%
   group_by(rider_id) %>% summarise(matches = n(), home_matches = sum(home))
 ```
@@ -632,12 +631,12 @@ In hindsight home advantage is not likely to have a significant impact on the ev
 bt4_summ <- read_remote_target("bt_summary_bt4")
 
 bt4_measures <- bt4_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
-  mutate(
-    model = 'bt4',
-    model_split = paste(model, "-", split)
-  )
+    filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+    extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
+    mutate(
+      model = 'bt4',
+      model_split = paste(model, "-", split)
+    )
 
 measures <- bind_rows(measures, bt4_measures)
 ```
@@ -647,7 +646,7 @@ measures <- bind_rows(measures, bt4_measures)
 ```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "accuracy", round_id == 6)
+  filter(measure == "accuracy")
 
 accuracy %>% 
   select(model, split,  q5, median, q95) %>%
@@ -684,7 +683,7 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
 ```{r ref.label=c('match_log_loss'), echo = FALSE}
 log_loss <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "match_log_loss", round_id == 6)
+  filter(measure == "match_log_loss")
 
 log_loss %>% 
   select(model, split,  q5, median, q95) %>%
@@ -696,6 +695,7 @@ log_loss %>%
 ```{r ref.label=c('log_loss_plot'), echo = FALSE}
 
 match_log_loss_benchmark <- matches %>%
+  filter(round != 'Qualifying') %>%
   mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
   group_by(split) %>%
   summarise(benchmark = mean(benchmark))
@@ -885,8 +885,8 @@ The model summary below indicates that introducing the GP appears to lower the a
 bt5_summ <- read_remote_target("bt_summary_bt5")
 
 bt5_measures <- bt5_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt5',
     model_split = paste(model, "-", split)
@@ -900,7 +900,7 @@ measures <- bind_rows(measures, bt5_measures)
 ```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "accuracy", round_id == 6)
+  filter(measure == "accuracy")
 
 accuracy %>% 
   select(model, split,  q5, median, q95) %>%
@@ -936,7 +936,7 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
 ```{r ref.label=c('match_log_loss')}
 log_loss <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "match_log_loss", round_id == 6)
+  filter(measure == "match_log_loss")
 
 log_loss %>% 
   select(model, split,  q5, median, q95) %>%
@@ -948,6 +948,7 @@ log_loss %>%
 ```{r ref.label=c('log_loss_plot'), echo = FALSE}
 
 match_log_loss_benchmark <- matches %>%
+  filter(round != 'Qualifying') %>%
   mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
   group_by(split) %>%
   summarise(benchmark = mean(benchmark))
@@ -1003,7 +1004,7 @@ As usual we need to choose a prior for $\kappa$ - I'll do a back of the envelope
 
 Suppose then that this time difference is observed, but otherwise two riders are believed to have the same strength. In that scenario I'd back the faster qualifier to win with a probability between 0.55 and 0.8. Converting back, that implies values of $\kappa$ between 1 and 7.
 
-<aside>By taking $\text{logit}(0.55)/0.2 \approx `r round(qlogis(0.55)/0.2,1)`$ and $\text{logit}(0.55)/0.2 \approx `r round(qlogis(0.8)/0.2,1)`$.</aside>
+<aside>By taking $\text{logit}(0.55)/0.2 \approx `r round(qlogis(0.8)/0.2,1)`$ and $\text{logit}(0.55)/0.2 \approx `r round(qlogis(0.8)/0.2,1)`$.</aside>
 
 I don't want to rule out the scenario that perhaps qualifying faster is detrimental - so overall I'll pick a fairly broad prior of $\kappa \sim \text{Normal}(4,4)$ which allows for that scenario, whilst favouring my estimated range above.
 
@@ -1108,8 +1109,8 @@ Including the qualifying data turns out to be the magic bullet to boost the mode
 ```{r, echo = FALSE}
 
 bt6_measures <- bt6_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[.*\\]')) %>%
-  extract(variable, into = c("split", "measure", "round_id"), "(.*?)_(.*)\\[(.*)\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt6',
     model_split = paste(model, "-", split)
@@ -1123,7 +1124,7 @@ measures <- bind_rows(measures, bt6_measures)
 ```{r ref.label=c('accuracy_table'), eval = TRUE, echo = FALSE}
 accuracy <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "accuracy", round_id == 6)
+  filter(measure == "accuracy")
 
 accuracy %>% 
   select(model, split,  q5, median, q95) %>%
@@ -1159,7 +1160,7 @@ ggplot(accuracy, aes(y=fct_rev(model))) +
 ```{r ref.label=c('match_log_loss')}
 log_loss <- measures %>%
   # totals are given in round_id = 6
-  filter(measure == "match_log_loss", round_id == 6)
+  filter(measure == "match_log_loss")
 
 log_loss %>% 
   select(model, split,  q5, median, q95) %>%
@@ -1171,6 +1172,7 @@ log_loss %>%
 ```{r ref.label=c('log_loss_plot'), echo = FALSE}
 
 match_log_loss_benchmark <- matches %>%
+  filter(round != 'Qualifying') %>%
   mutate(benchmark = if_else(sprints == 1, log(0.5), log(0.25))) %>%
   group_by(split) %>%
   summarise(benchmark = mean(benchmark))
@@ -1302,5 +1304,5 @@ Moving on - In the next post I'll take the model as it now stands and turn this 
 
 ## Acknowledgments {.appendix}
 
-This post makes heavy use of R and Stan, and so benefits from the many people who contribute to their development.
+This post makes heavy use of R and Stan, and so benefits from the work of all those who contribute to their development.
   

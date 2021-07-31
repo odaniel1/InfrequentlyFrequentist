@@ -99,6 +99,7 @@ matches <- read_remote_target("matches")
 
 # summary info
 matches_summary <- matches %>%
+  filter(round != 'Qualifying') %>%
   summarise(
     min_date = min(date),
     max_date = max(date),
@@ -523,16 +524,16 @@ Models with better predictive power will have higher accuracy (closer to 1), and
 [Accuracy]{.panel-name}
 ```{r}
 bt1_measures <- bt1_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
-  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt1',
     model_split = paste(model, "-", split)
   )
 
 bt2_measures <- bt2_summ %>%
-  filter(str_detect(variable,'(accuracy|log_loss)\\[6\\]')) %>%
-  extract(variable, into = c("split", "measure"), "(.*?)_(.*)\\[6\\]") %>%
+  filter(str_detect(variable,'(accuracy|log_loss)')) %>%
+  extract(variable, into = c("split", "measure"), "(.*?)_(.*)") %>%
   mutate(
     model = 'bt2',
     model_split = paste(model, "-", split)
