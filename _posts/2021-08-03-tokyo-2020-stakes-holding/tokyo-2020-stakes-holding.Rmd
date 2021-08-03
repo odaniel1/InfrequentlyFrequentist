@@ -1,0 +1,129 @@
+---
+title: "Tokyo 2020 Betting: My Stakes (Holding Post)"
+description: |
+  A holding post with the stakes I'm betting on the Individual Sprint. In the imminent future this post will be replaced by a full analysis of how I used draws from the Bradley-Terry model to derive the posterior distribution for the Gold medal winners of the track cycling Individual sprint. And how these were combined with the Kelly Criterion to derive optimised betting stakes under uncertainty.
+date: 08-03-2021
+output:
+  distill::distill_article:
+    toc: true
+    toc_depth: 2
+  self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, code_folding = TRUE)
+options(kableExtra.html.bsTable = T)
+
+library(tidyverse)
+library(lubridate)
+library(infreqthemes)
+library(xaringanExtra)
+library(knitr)
+library(kableExtra)
+library(fst)
+library(formattable)
+
+xaringanExtra::use_panelset()
+
+remote_project_path <- '~/Documents/R Projects/track-cycling/'
+remote_targets_path <- paste0(remote_project_path, '_targets/objects/')
+
+read_remote_target <- function(name, path = remote_targets_path){
+  
+  file_path <- paste0(path,name)
+  
+  tar <- try(read_rds(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  
+  tar <- try(read_fst(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  else{stop("Failed to read remote target")}
+}
+
+```
+
+With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis. The good news is - the analytical workflow from model optimisation through to a betting strategy are complete (and visible [here]). However - drafting a full blog post detailing how to go from the predictive model to a betting strategy was always going to be a stretch to complete in time.
+
+In due course, this post will morph into the more detailed analysis - but for now I'll use this as a holding space to detail the odds that were offered, and the bets that I placed.
+
+
+In total I'm allowing myself a budget of £20 - and I'm expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of Men/Women, after before qualifying, after qualifying, and entering one of the later rounds (to be decided which)!
+
+I will follow the Kelly odds recommended by the model, but cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men's bet is £3.33.
+
+## Pre-Qualifying
+
+Its the eve of the Men's qualifying. I'm keen to place my first bets now in anticipation that the odds will start to change once the qualifying times have been recorded (after all, in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) we saw that qualifying times were highly predictive of match results).
+
+Since qualifying has not yet happened I've assumed all riders have an equal qualifying time in the model, and then assumed qualifying positions are in order of strength.
+
+<aside>Much more detail about how Bradley-Terry strength parameters propogate to gold medal predictions to come.</aside>
+
+The tables below detail the odds that were available to me on Unibet, the stakes I placed, and the expected return under my model.
+
+::::: {.panelset}
+
+::: {.panel}
+[Men]{.panel-name}
+
+```{r, echo = FALSE}
+odds <- read_remote_target("kelly_strategy_Men")
+probs <- read_remote_target("kelly_posterior_Men")
+wealth <- 20
+cap <- 20/6
+```
+
+Bets placed
+
+```{r odds-table, echo = FALSE}
+
+total_kelly_stake <- sum(odds$kelly_stakes)
+
+all_odds <- odds %>% 
+  mutate(
+    kelly_stakes = wealth * kelly_stakes,
+    capped_kelly_stakes = kelly_stakes * (cap/sum(kelly_stakes)),
+    capped_kelly_stakes = round(capped_kelly_stakes,1)
+  ) 
+
+probs_mean <- probs %>%
+  group_by(rider) %>%
+  summarise(gold_prob = mean(gold_prob))
+
+all_odds <- all_odds %>%
+  left_join(probs_mean) %>%
+  mutate(
+    expected_return = gold_prob * capped_kelly_stakes * (1 + fractional_odds)
+  ) %>%
+  arrange(desc(gold_prob)) %>%
+  ungroup()
+
+all_odds %>%
+  filter(capped_kelly_stakes > 0) %>%
+  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+  kable("pipe", digits = 1)
+```
+
+
+<details>
+<summary>All Other Odds</summary>
+```{r other-odds, echo = FALSE}
+all_odds %>%
+  filter(kelly_stakes == 0) %>%
+  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+  kable("pipe", digits = 1)
+```
+</details>
+:::
+:::::
+
+
+
+## Comments
+
+## Acknowledgments {.appendix}
+
+
+  
