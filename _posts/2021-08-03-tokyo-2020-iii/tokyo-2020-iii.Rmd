@@ -1,0 +1,152 @@
+---
+title: "Tokyo 2020 Betting III: From Matches to Medals... and Bookies"
+description: |
+  In this post I will use posterior draws from the Bradley-Terry model to derive the posterior distribution for the Gold medal winners of the track cycling Individual sprint. I'll then derive an optimal betting strategy using a spread-bet Kelly Criterion.  
+date: 08-03-2021
+output:
+  distill::distill_article:
+    toc: true
+    toc_depth: 2
+  self_contained: false
+categories:
+  - Bayesian
+  - Optimisation
+  - Cycling
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, code_folding = TRUE)
+options(kableExtra.html.bsTable = T)
+
+library(tidyverse)
+library(lubridate)
+library(infreqthemes)
+library(xaringanExtra)
+library(knitr)
+library(kableExtra)
+library(fst)
+library(formattable)
+
+xaringanExtra::use_panelset()
+
+remote_project_path <- '~/Documents/R Projects/track-cycling/'
+remote_targets_path <- paste0(remote_project_path, '_targets/objects/')
+
+read_remote_target <- function(name, path = remote_targets_path){
+  
+  file_path <- paste0(path,name)
+  
+  tar <- try(read_rds(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  
+  tar <- try(read_fst(file_path),silent=TRUE)
+  
+  if(class(tar) != 'try-error'){return(tar)}
+  else{stop("Failed to read remote target")}
+}
+
+```
+
+*This is the third post in a series, following:*
+
+* [*Tokyo 2020 Betting I: Predictive Models for Pairwise Matches*](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/)
+* [*Tokyo 2020 Betting II: Model Refinement and Feature Engineering*](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/)
+
+
+So far in this series I've focused on predicting the outcome of matches between two athletes in the individual sprint, deriving *strength* values for each athlete, which determine the probability that they will win a given match. The athlete with the highest strength will be favourite to win every match that they contest - and will therefore also be the favourite to win the overall tournament. 
+
+<aside>
+Recap: if riders $r$ and $s$ have strengths $\alpha(r)$ and $\alpha(s)$ then the model believes
+$$\mathbf P[r\text{ beats }s] = \frac{e^{\alpha(r)}}{e^{\alpha(r)} + e^{\alpha(s)}}.$$
+</aside>
+To construct a betting strategy I will need to turn the probability that a given rider wins a single match, into the probability that they will win the whole tournament - and hence the gold medal.
+
+In the first section of this post I'll introduce the tournament format for the Tokyo 2020 Individual Sprint, and use the custom Bradley-Terry model developed in the previous posts to derive a distribution for the winner of the gold medal.
+
+In the second part of this post I'll summarise the Kelly Criterion for multiple bets which will lead to a non-linear optimisation problem - the solution of which will  thto derive an optimal betting strategy based on my winning probabilities.
+
+### Assumptions
+This post makes some assumptions about you!
+
+I'll assume you've read the previous posts in the series, though this post should work as a standalone.
+
+I'll also assume you have some knowledge of basic betting terminology (fractional odds, stakes). To derive my betting strategy I will use some discrete probability, and formalise a non-linear optimisation model.
+
+If you're interested in reading the underlying code, this is in R..
+
+<aside>The full model code, from model fitting to betting stakes is [here](https://github.com/odaniel1/track-cycling/tree/targets).</aside>
+
+## Tournament Forecasting
+
+The Individual Sprint has a complex tournament structure, which will see the winning athlete compete between 10 and 16 sprints before they can claim the medal!
+
+There are four main parts to the tournament structure, which in Tokyo 2020 will see 30 athletes compete:
+
+::::: {.panelset}
+
+::: {.panel}
+[Overview]{.panel-name}
+
+
+* A *qualifying* round that sees all athletes competing individually to set the fastest time, with the six slowest athletes eliminated.
+
+* *1/2N Finals* that see the $2N$ remaining athletes compete in pairs. The winner of a single sprint automatically qualifies for the next 1/2M Final.
+
+* *Repechage* races that see the N losers from the 1/2N round competing to take the additional places in the next 1/2M Final.
+
+* *Quarter-, Semi-, and Finals* raced between pairs of riders. The match is contested in a best of three sprints format.
+
+For instance, in Tokyo the twelve winners of the 1/24 Final automatically qualify for the next main round.
+
+The twelve losing riders will be split into four repechage matches of three athletes, the four winners will join the twelve previous qualifiers and compete in the 1/16 final.
+:::
+
+:::{.panel}
+[Tokyo 2020 Summary]{.panel-name}
+
+| Round | Athletes Competing | Matches x Athletes per Match | Sprints per Match | Athletes Qualifying |
+|---|:-:|:-:|:-:|:-:|
+| Qualifying | 30 | 30 x 1 | 1 |24  |
+| 1/24 Finals | 24 | 12 x 2 | 1 | 12 |
+| *Repechage 1* | 12 | 4 x 3 | 1 | 4 |
+| 1/16 Finals | 16 | 8 x 2 | 1 | 8 |
+| *Repechage 2* | 8 | 4 x 2 | 1 | 4 |
+| 1/12 Finals | 12 | 6 x 2 | 1 | 6 |
+| *Repechage 3* | 6 | 2 x 3 | 1 | 2 |
+| Quarterfinals | 8 | 4 x 2 | Best of 3 | 4 |
+| Semifinals | 4 | 2 x 2 |  Best of 3 | 2 |
+| Finals | 2 | 2 x 1 |  Best of 3 | 1 |
+:::
+
+:::{.panel}
+[Tokyo 2020 Detail]{.panel-name}
+This is the detailed table published by the UCI in their [Track Regulations](https://www.uci.org/docs/default-source/rules-and-regulations/3-pis-20210610-e.pdf) which specifies the details of which riders will face each other.
+
+The initial rider codes N1-N24 are in order of the time posted in the qualifying round: N1 is the fastest qualifier, N24 the slowest.
+
+```{r}
+read_remote_target("fcst_rounds_Men") %>%
+  select(-round_no,-competitors) %>%
+  kable("pipe") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = list(condensed = TRUE), font_size = 7)
+```
+
+:::
+:::::
+
+Given the detailed tournament table above, and a set of athlete strengths $\alpha_r$, we can simulate entire tournaments by sampling matches 
+
+
+
+## Deriving the Betting Strategy
+
+## Summary of Bets Placed
+
+## Comments
+
+## Acknowledgments {.appendix}
+
+
+  
