@@ -99,29 +99,9 @@ cap <- 20/6
 Bets placed
 
 ```{r odds-table, echo = FALSE}
+pre_qual_men <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PreQualifying.csv")
 
-total_kelly_stake <- sum(odds$kelly_stakes)
-
-all_odds <- odds %>% 
-  mutate(
-    kelly_stakes = wealth * kelly_stakes,
-    capped_kelly_stakes = kelly_stakes * (cap/sum(kelly_stakes)),
-    capped_kelly_stakes = round(capped_kelly_stakes,1)
-  ) 
-
-probs_mean <- probs %>%
-  group_by(rider) %>%
-  summarise(gold_prob = mean(gold_prob))
-
-all_odds <- all_odds %>%
-  left_join(probs_mean) %>%
-  mutate(
-    expected_return = gold_prob * capped_kelly_stakes * (1 + fractional_odds)
-  ) %>%
-  arrange(desc(gold_prob)) %>%
-  ungroup()
-
-all_odds %>%
+pre_qual_men %>%
   filter(capped_kelly_stakes > 0) %>%
   select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
   kable("pipe", digits = 2)
@@ -131,7 +111,7 @@ all_odds %>%
 <details>
 <summary>All Other Odds</summary>
 ```{r other-odds, echo = FALSE}
-all_odds %>%
+pre_qual_men %>%
   filter(capped_kelly_stakes == 0) %>%
   select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
   kable("pipe", digits = 2)
@@ -140,6 +120,43 @@ all_odds %>%
 :::
 :::::
 
+## 1/24 Finals
+
+::::: {.panelset}
+
+::: {.panel}
+[Men]{.panel-name}
+
+```{r, echo = FALSE}
+odds <- read_remote_target("kelly_strategy_Men")
+probs <- read_remote_target("kelly_posterior_Men")
+wealth <- 20
+cap <- 20/6
+```
+
+Bets placed
+
+```{r, echo = FALSE}
+post_qual_men <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifying.csv")
+
+post_qual_men %>%
+  filter(capped_kelly_stakes > 0) %>%
+  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+  kable("pipe", digits = 2)
+```
+
+
+<details>
+<summary>All Other Odds</summary>
+```{r , echo = FALSE}
+post_qual_men %>%
+  filter(capped_kelly_stakes == 0) %>%
+  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+  kable("pipe", digits = 2)
+```
+</details>
+:::
+:::::
 
 
 ## Comments
