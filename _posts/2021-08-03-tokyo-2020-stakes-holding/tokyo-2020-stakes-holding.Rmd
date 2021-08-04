@@ -44,6 +44,16 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
+<details>
+<summary>*This is the third post in a series: Click for links.*</summary>
+
+[*Tokyo 2020 Betting I: Predictive Models for Pairwise Matches*](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/) 
+
+[*Tokyo 2020 Betting II: Model Refinement and Feature Engineering*](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/)
+
+[*Tokyo 2020 Betting III: From Matches to Medals... and Bookies*](https://www.infreq.com/posts/2021-08-03-tokyo-2020-stakes-holding/) **(This Post)**
+</details>
+
 With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis.
 
 The analytical workflow to go from model optimisation through to betting stakes are complete, but drafting a full blog post detailing how I've gone from predicting individual matches to entire tournaments, and then the defining betting stakes was beyond me in the time available.

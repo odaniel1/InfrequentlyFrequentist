@@ -48,6 +48,18 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
+
+<details>
+<summary>*This is the first post in a series: Click for links*</summary>
+
+[*Tokyo 2020 Betting I: Predictive Models for Pairwise Matches*](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/)  **(This Post)** 
+
+[*Tokyo 2020 Betting II: Model Refinement and Feature Engineering*](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/)
+
+[*Tokyo 2020 Betting III: From Matches to Medals... and Bookies*](https://www.infreq.com/posts/2021-08-03-tokyo-2020-stakes-holding/)
+
+</details>
+
 The Olympics are officially under way, and I'm primed to become an armchair expert in sports that I haven't expressed any interest in for four years. As a proactive way to engage with the games I thought I'd explore how to integrate predictive modelling with betting strategies.
 
 Statistical models are common place amongst bookmakers, and I'm not naive enough to believe a model I threw together over a few days could beat a concerted effort by experienced sports analysts. However, I first explored this project for the 2019 Track Cycling World Championships, but UK bookmakers weren't offering odds, let alone those derived from machine learning: so that gives me hope that a team of dedicated track cyling modelers simply doesn't exist!
@@ -95,7 +107,7 @@ Detailed match results for most large track cycling events are maintained by [Ti
 
 ```{r matches, echo = FALSE}
 # read match data from remote _target store
-matches <- read_remote_target("matches")
+matches <- read_remote_target("matches_Women")
 
 # summary info
 matches_summary <- matches %>%
@@ -234,9 +246,9 @@ Throughout this series I'll fit the models using [Stan](https://mc-stan.org/). T
 The plot below shows the posterior 90% credible intervals for each rider's strength, for clarity I've filtered the data down to those riders who have competed since the start of 2020.
 
 ```{r p_strengths_bt1, fig.height = 8, warning = FALSE, message = FALSE}
-riders <- read_remote_target("riders")
+riders <- read_remote_target("riders_Women")
 
-bt1_summ <- read_remote_target("bt_summary_bt1")
+bt1_summ <- read_remote_target("bt_summary_bt1_Women")
 
 bt1_strength_summ <- bt1_summ %>%
   filter(str_detect(variable, 'alpha')) %>%
@@ -253,7 +265,7 @@ p_strengths_bt1
 ```
 
 ```{r preview-plot,   echo = FALSE, eval = FALSE}
-riders <- read_remote_target("riders")
+riders <- read_remote_target("riders_Women")
 
 riders_WC20 <- matches %>% filter(event == '2020 UCI TRACK WORLD CYCLING CHAMPIONSHIPS') %>%
   select(rider_1,rider_2)
@@ -460,7 +472,7 @@ Visually the plot of posterior strengths looks pretty similar under the revised 
 However, the change in prior does have a material impact on the maximum odds statistic, this is summarised in the table below which shows both the prior and posterior ranges for this statistic, for the two models.
 
 ```{r}
-bt2_summ <- read_remote_target("bt_summary_bt2")
+bt2_summ <- read_remote_target("bt_summary_bt2_Women")
 
 bt2_max_odds <- bt2_summ %>%
   filter(str_detect(variable, 'delta_max')) %>%
@@ -615,7 +627,7 @@ The Gamma prior fairs better as it was designed to lead the model away from scen
 
 In this post I've introduced the basic Bradley-Terry model, and shown that it out performs a strategy of random guessing. 
 
-In the next post I'll start to deviate from the standard model, accounting for features available in the data that should help to improve the predictive power of the model.
+In the [next post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) I'll start to deviate from the standard model, accounting for features available in the data that should help to improve the predictive power of the model.
 
 # Comments
 
