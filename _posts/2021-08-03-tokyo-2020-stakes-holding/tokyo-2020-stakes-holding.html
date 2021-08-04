@@ -2904,19 +2904,65 @@ distill-header .nav a {
 <nav class="l-text toc figcaption" id="TOC">
 <h3>Contents</h3>
 <ul>
+<li><a href="#budget-and-schedule">Budget and Schedule</a></li>
 <li><a href="#pre-qualifying">Pre-Qualifying</a></li>
 <li><a href="#comments">Comments</a></li>
 <li><a href="#acknowledgments">Acknowledgments</a></li>
 </ul>
 </nav>
 </div>
-<p>With the qualifying rounds of the Men’s individual sprint starting tomorrow, its time to put some money behind my analysis. The good news is - the analytical workflow from model optimisation through to a betting strategy are complete (and visible [here]). However - drafting a full blog post detailing how to go from the predictive model to a betting strategy was always going to be a stretch to complete in time.</p>
-<p>In due course, this post will morph into the more detailed analysis - but for now I’ll use this as a holding space to detail the odds that were offered, and the bets that I placed.</p>
-<p>In total I’m allowing myself a budget of £20 - and I’m expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of Men/Women, after before qualifying, after qualifying, and entering one of the later rounds (to be decided which)!</p>
-<p>I will follow the Kelly odds recommended by the model, but cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men’s bet is £3.33.</p>
+<p>With the qualifying rounds of the Men’s individual sprint starting tomorrow, its time to put some money behind my analysis.</p>
+<p>The analytical workflow to go from model optimisation through to betting stakes are complete, but drafting a full blog post detailing how I’ve gone from predicting individual matches to entire tournaments, and then the defining betting stakes was beyond me in the time available.</p>
+<aside>
+All that detail in code form is available <a href="https://github.com/odaniel1/track-cycling">here</a>.
+</aside>
+<p>In due course this blog post will morph to contain the details of the analysis - but for now this will be a holding space to report the odds I was being offered, and the and the stakes I put against these.</p>
+<h2 id="budget-and-schedule">Budget and Schedule</h2>
+<p>In total I’m allowing myself a budget of £20 - not exactly betting big, but also a non-negligible amount which will give me the flexibility to make a number of bets.</p>
+<p>Going into the event I’m expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of the Men/Women’s events, and within the genders betting at three stages: before qualifying, after qualifying, and at one of the later rounds (to be decided which)!</p>
+<p>My model will reccomend a fraction of my total budget to bet at each stage; to avoid blowing my budget early I’ll also cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men/Women’s bet is £3.33.</p>
+<aside>
+My stakes are derived from an non-linear optimisation problem that extends the basic <a href="https://en.wikipedia.org/wiki/Kelly_criterion">Kelly Criterion</a> to handle multi-bet scenarios.
+</aside>
 <h2 id="pre-qualifying">Pre-Qualifying</h2>
-<p>Its the eve of the Men’s qualifying. I’m keen to place my first bets now in anticipation that the odds will start to change once the qualifying times have been recorded (after all, in the <a href="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/">previous post</a> we saw that qualifying times were highly predictive of match results).</p>
-<p>Since qualifying has not yet happened I’ve assumed all riders have an equal qualifying time in the model, and then assumed qualifying positions are in order of strength.</p>
+<p>The idea of betting at this point is that hopefully the bookies odds are naive, as they won’t have adjusted for qualifying times. We saw in the <a href="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/">previous post</a> qualifying data is highly predictive of match results.</p>
+<p>In practice the odds will have already started shifting as a number of the athletes competing in the individual sprint have already taken part in other events. The most direct comparison is likely to the team sprint which has already seen medals go to:</p>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: center;"></th>
+<th>Men</th>
+<th>Women</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">Gold</td>
+<td><em>Netherlands</em><br> <strong>Jeffrey Hoogland<br>Harrie Lavreysen</strong><br>Roy van den Berg</td>
+<td><em>China</em><br><strong>Bao Shanju<br>Zhong Tianshi</strong></td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">Silver</td>
+<td><em>Great Britain</em><br><strong>Jack Carlin<br>Jason Kenny<br></strong>Ryan Owens</td>
+<td><em>Germany</em><br><strong>Lea Friedrich<br>Emma Hinze</strong></td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">Bronze</td>
+<td><em>France</em><br>Florian Grengbo<br><strong>Rayan Helal<br>Sébastien Vigier</strong></td>
+<td><em>Russian Olympic Comity</em><br><strong>Daria Shmeleva<br>Anastasia Voynova</strong></td>
+</tr>
+</tbody>
+</table>
+<aside>
+Athletes in bold are competing in the individual sprint.
+</aside>
+<p>I won’t explicitly take this into account in modelling my stakes - but might then cap the stakes if I think the model is being overly confident.</p>
+<p>The final model I settled on has a parameter for the qualifying time difference between riders, and further to model tournament outcomes I need to know qualifying positions. Since at this point these are unknown, I’ve run the model with the assumption that all riders had an equal qualifying time, and then seeded them for the tournament in order of the strength returned from the Bradley-Terry model.</p>
 <aside>
 Much more detail about how Bradley-Terry strength parameters propogate to gold medal predictions to come.
 </aside>
@@ -2944,15 +2990,15 @@ Much more detail about how Bradley-Terry strength parameters propogate to gold m
 <td style="text-align: left;">LAVREYSEN HARRIE</td>
 <td style="text-align: right;">0.7</td>
 <td style="text-align: right;">1.0</td>
-<td style="text-align: right;">0.5</td>
-<td style="text-align: right;">0.9</td>
+<td style="text-align: right;">0.52</td>
+<td style="text-align: right;">0.88</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">GLAETZER MATTHEW</td>
 <td style="text-align: right;">14.0</td>
 <td style="text-align: right;">2.4</td>
-<td style="text-align: right;">0.2</td>
-<td style="text-align: right;">7.9</td>
+<td style="text-align: right;">0.22</td>
+<td style="text-align: right;">7.89</td>
 </tr>
 </tbody>
 </table>
@@ -2971,6 +3017,202 @@ Much more detail about how Bradley-Terry strength parameters propogate to gold m
 </tr>
 </thead>
 <tbody>
+<tr class="odd">
+<td style="text-align: left;">HOOGLAND JEFFREY</td>
+<td style="text-align: right;">3.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">CARLIN JACK</td>
+<td style="text-align: right;">20.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RUDYK MATEUSZ</td>
+<td style="text-align: right;">14.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">HART NATHAN</td>
+<td style="text-align: right;">50.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">VIGIER SEBASTIEN</td>
+<td style="text-align: right;">40.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LEVY MAXIMILIAN</td>
+<td style="text-align: right;">33.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">DMITRIEV DENIS</td>
+<td style="text-align: right;">12.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">NITTA YUDAI</td>
+<td style="text-align: right;">40.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">HELAL RAYAN</td>
+<td style="text-align: right;">66.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">BROWNE KWESI</td>
+<td style="text-align: right;">150.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">KENNY JASON</td>
+<td style="text-align: right;">6.5</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">PAUL NICHOLAS</td>
+<td style="text-align: right;">100.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">WEBSTER SAM</td>
+<td style="text-align: right;">25.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">TJON EN FA JAIR</td>
+<td style="text-align: right;">150.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">WAKIMOTO YUTA</td>
+<td style="text-align: right;">150.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XU CHAO</td>
+<td style="text-align: right;">100.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">MITCHELL ETHAN</td>
+<td style="text-align: right;">33.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">AWANG MOHD AZIZULHASNI</td>
+<td style="text-align: right;">18.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">YAKUSHEVSKIY PAVEL</td>
+<td style="text-align: right;">150.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">BOTTICHER STEFAN</td>
+<td style="text-align: right;">25.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">WAMMES NICK</td>
+<td style="text-align: right;">200.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">BABEK TOMAS</td>
+<td style="text-align: right;">80.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">QUINTERO CHAVARRO KEVIN SANTIAGO</td>
+<td style="text-align: right;">80.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">BARRETTE HUGO</td>
+<td style="text-align: right;">100.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">PONOMARYOV SERGEY</td>
+<td style="text-align: right;">200.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">RAJKOWSKI PATRYK</td>
+<td style="text-align: right;">100.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">SAHROM MUHAMMAD SHAH FIRDAUS</td>
+<td style="text-align: right;">200.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">SPIES JEAN</td>
+<td style="text-align: right;">150.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.00</td>
+<td style="text-align: right;">0</td>
+</tr>
 </tbody>
 </table>
 </div>

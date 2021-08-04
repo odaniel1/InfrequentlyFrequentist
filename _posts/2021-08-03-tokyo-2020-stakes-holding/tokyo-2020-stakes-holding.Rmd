@@ -44,20 +44,41 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
-With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis. The good news is - the analytical workflow from model optimisation through to a betting strategy are complete (and visible [here]). However - drafting a full blog post detailing how to go from the predictive model to a betting strategy was always going to be a stretch to complete in time.
+With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis.
 
-In due course, this post will morph into the more detailed analysis - but for now I'll use this as a holding space to detail the odds that were offered, and the bets that I placed.
+The analytical workflow to go from model optimisation through to betting stakes are complete, but drafting a full blog post detailing how I've gone from predicting individual matches to entire tournaments, and then the defining betting stakes was beyond me in the time available.
 
+<aside>All that detail in code form is available [here](https://github.com/odaniel1/track-cycling).</aside> 
 
-In total I'm allowing myself a budget of £20 - and I'm expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of Men/Women, after before qualifying, after qualifying, and entering one of the later rounds (to be decided which)!
+In due course this blog post will morph to contain the details of the analysis - but for now this will be a holding space to report the odds I was being offered, and the and the stakes I put against these.
 
-I will follow the Kelly odds recommended by the model, but cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men's bet is £3.33.
+## Budget and Schedule
+
+In total I'm allowing myself a budget of £20 - not exactly betting big, but also a non-negligible amount which will give me the flexibility to make a number of bets.
+
+Going into the event I'm expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of the Men/Women's events, and within the genders betting at three stages: before qualifying, after qualifying, and at one of the later rounds (to be decided which)!
+
+My model will reccomend a fraction of my total budget to bet at each stage; to avoid blowing my budget early I'll also cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men/Women's bet is £3.33.
+
+<aside>My stakes are derived from an non-linear optimisation problem that extends the basic [Kelly Criterion](https://en.wikipedia.org/wiki/Kelly_criterion) to handle multi-bet scenarios.</aside>
 
 ## Pre-Qualifying
 
-Its the eve of the Men's qualifying. I'm keen to place my first bets now in anticipation that the odds will start to change once the qualifying times have been recorded (after all, in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) we saw that qualifying times were highly predictive of match results).
+The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
 
-Since qualifying has not yet happened I've assumed all riders have an equal qualifying time in the model, and then assumed qualifying positions are in order of strength.
+In practice the odds will have already started shifting as a number of the athletes competing in the individual sprint have already taken part in other events. The most direct comparison is likely to the team sprint which has already seen medals go to:
+
+| | Men | Women |
+|:-:|---|---|
+|Gold |*Netherlands*<br> **Jeffrey Hoogland<br>Harrie Lavreysen**<br>Roy van den Berg | *China*<br>**Bao Shanju<br>Zhong Tianshi** |
+|Silver| *Great Britain*<br>**Jack Carlin<br>Jason Kenny<br>**Ryan Owens | *Germany*<br>**Lea Friedrich<br>Emma Hinze** |
+|Bronze| *France*<br>Florian Grengbo<br>**Rayan Helal<br>Sébastien Vigier** |*Russian Olympic Comity*<br>**Daria Shmeleva<br>Anastasia Voynova** |
+
+<aside>Athletes in bold are competing in the individual sprint.</aside>
+
+I won't explicitly take this into account in modelling my stakes - but might then cap the stakes if I think the model is being overly confident.
+
+The final model I settled on has a parameter for the qualifying time difference between riders, and further to model tournament outcomes I need to know qualifying positions. Since at this point these are unknown, I've run the model with the assumption that all riders had an equal qualifying time, and then seeded them for the tournament in order of the strength returned from the Bradley-Terry model.
 
 <aside>Much more detail about how Bradley-Terry strength parameters propogate to gold medal predictions to come.</aside>
 
@@ -103,7 +124,7 @@ all_odds <- all_odds %>%
 all_odds %>%
   filter(capped_kelly_stakes > 0) %>%
   select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
-  kable("pipe", digits = 1)
+  kable("pipe", digits = 2)
 ```
 
 
@@ -111,9 +132,9 @@ all_odds %>%
 <summary>All Other Odds</summary>
 ```{r other-odds, echo = FALSE}
 all_odds %>%
-  filter(kelly_stakes == 0) %>%
+  filter(capped_kelly_stakes == 0) %>%
   select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
-  kable("pipe", digits = 1)
+  kable("pipe", digits = 2)
 ```
 </details>
 :::
