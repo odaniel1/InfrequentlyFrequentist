@@ -66,106 +66,123 @@ In due course this blog post will morph to contain the details of the analysis -
 
 In total I'm allowing myself a budget of £20 - not exactly betting big, but also a non-negligible amount which will give me the flexibility to make a number of bets.
 
-Going into the event I'm expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of the Men/Women's events, and within the genders betting at three stages: before qualifying, after qualifying, and at one of the later rounds (to be decided which)!
+Going into the event I'm expecting to bet a total of six times (each time potentially spreading on multiple outcomes): three times for each of the Men/Women's events, and within the genders betting at three stages: before qualifying, after qualifying, and before the semi-finals!
 
-My model will reccomend a fraction of my total budget to bet at each stage; to avoid blowing my budget early I'll also cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men/Women's bet is £3.33.
+My model will recommend a fraction of my total budget to bet at each stage; to avoid blowing my budget early I'll also cap my expenditure in earlier rounds at 1/6 of the total budget: i.e. the max the strategy will allow me to spend on the pre-qualifying Men/Women's bet is £3.40.
 
 <aside>My stakes are derived from an non-linear optimisation problem that extends the basic [Kelly Criterion](https://en.wikipedia.org/wiki/Kelly_criterion) to handle multi-bet scenarios.</aside>
 
-## Pre-Qualifying
+## Betting Log
+
+::::: {.panelset}
+
+::: {.panel}
+[Men]{.panel-name}
+
+### Pre-Qualifying
 
 The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
 
-In practice the odds will have already started shifting as a number of the athletes competing in the individual sprint have already taken part in other events. The most direct comparison is likely to the team sprint which has already seen medals go to:
-
-| | Men | Women |
-|:-:|---|---|
-|Gold |*Netherlands*<br> **Jeffrey Hoogland<br>Harrie Lavreysen**<br>Roy van den Berg | *China*<br>**Bao Shanju<br>Zhong Tianshi** |
-|Silver| *Great Britain*<br>**Jack Carlin<br>Jason Kenny<br>**Ryan Owens | *Germany*<br>**Lea Friedrich<br>Emma Hinze** |
-|Bronze| *France*<br>Florian Grengbo<br>**Rayan Helal<br>Sébastien Vigier** |*Russian Olympic Comity*<br>**Daria Shmeleva<br>Anastasia Voynova** |
-
-<aside>Athletes in bold are competing in the individual sprint.</aside>
-
-I won't explicitly take this into account in modelling my stakes - but might then cap the stakes if I think the model is being overly confident.
-
-The final model I settled on has a parameter for the qualifying time difference between riders, and further to model tournament outcomes I need to know qualifying positions. Since at this point these are unknown, I've run the model with the assumption that all riders had an equal qualifying time, and then seeded them for the tournament in order of the strength returned from the Bradley-Terry model.
-
-<aside>Much more detail about how Bradley-Terry strength parameters propogate to gold medal predictions to come.</aside>
-
-The tables below detail the odds that were available to me on Unibet, the stakes I placed, and the expected return under my model.
-
-::::: {.panelset}
-
-::: {.panel}
-[Men]{.panel-name}
+Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
 
 ```{r, echo = FALSE}
-odds <- read_remote_target("kelly_strategy_Men")
-probs <- read_remote_target("kelly_posterior_Men")
-wealth <- 20
-cap <- 20/6
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PreQualifying.csv")
 ```
 
-Bets placed
-
-```{r odds-table, echo = FALSE}
-pre_qual_men <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PreQualifying.csv")
-
-pre_qual_men %>%
+```{r stakes-table, echo = FALSE}
+stakes %>%
   filter(capped_kelly_stakes > 0) %>%
-  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
   kable("pipe", digits = 2)
 ```
-
 
 <details>
 <summary>All Other Odds</summary>
-```{r other-odds, echo = FALSE}
-pre_qual_men %>%
+```{r no-stakes-table, echo = FALSE}
+stakes %>%
   filter(capped_kelly_stakes == 0) %>%
-  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
+ select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
   kable("pipe", digits = 2)
 ```
 </details>
-:::
-:::::
 
-## 1/24 Finals
+### Post Qualifying
+These bets were placed ahead of the 1/32 finals; at this point 24 athlete's remained in the competition.
 
-::::: {.panelset}
+Unfortunately at this point I'm already down £2.40 - Matthew Glaetzer was substituted out at the last minute, so is not competing.
 
-::: {.panel}
-[Men]{.panel-name}
+I maintained the cap of £3.40 used in the first round.
 
-```{r, echo = FALSE}
-odds <- read_remote_target("kelly_strategy_Men")
-probs <- read_remote_target("kelly_posterior_Men")
-wealth <- 20
-cap <- 20/6
+```{r,echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifying.csv")
 ```
 
-Bets placed
-
-```{r, echo = FALSE}
-post_qual_men <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifying.csv")
-
-post_qual_men %>%
-  filter(capped_kelly_stakes > 0) %>%
-  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
-  kable("pipe", digits = 2)
+```{r, stakes-table, echo = FALSE}
 ```
-
 
 <details>
 <summary>All Other Odds</summary>
-```{r , echo = FALSE}
-post_qual_men %>%
-  filter(capped_kelly_stakes == 0) %>%
-  select(`Athlete` = rider, `Odds` = fractional_odds, `Stake` = kelly_stakes, `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return) %>%
-  kable("pipe", digits = 2)
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+### Post Quarterfinals
+
+These bets were placed following the quarterfinals, the day ahead of the semi-finals taking place.
+
+At this point the model is very stable and is predicting almost identical win probabilities for the leading athletes.
+
+In an effort to catch-up on the early loss on Glaetzer I'm going to lift my cap to £6.
+
+```{r,echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Men-PostQuarterfinals.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
 ```
 </details>
 :::
+
+::: {.panel}
+[Women]{.panel-name}
+
+
+### Pre-Qualifying
+
+The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
+
+Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Women-PreQualifying.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+### Post Qualifying
+
+### Post Quarterfinals
+
+:::
+
 :::::
 
 
