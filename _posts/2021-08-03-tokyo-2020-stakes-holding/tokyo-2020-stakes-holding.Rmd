@@ -179,6 +179,22 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Women-PreQualify
 
 ### Post Qualifying
 
+I've lifted the cap allowing me to bet up to £6.70. I've also decided to manually drop Lee Wai Sze's strength by 1 across all posterior samples as I believe the model is over estimating her strength based on historic performance. This is justified by her results in the Keirin, and the qualifying round for the sprint.
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-06-Women-PostQualifying.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+
 ### Post Quarterfinals
 
 :::
