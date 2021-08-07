@@ -49,23 +49,23 @@ read_remote_target <- function(name, path = remote_targets_path){
 
 ```
 
-*This is the third post in a series, following:*
+<details>
+<summary>*This is the third post in a series: Click for links.*</summary>
 
-* [*Tokyo 2020 Betting I: Predictive Models for Pairwise Matches*](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/)
-* [*Tokyo 2020 Betting II: Model Refinement and Feature Engineering*](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/)
+[*Tokyo 2020 Betting I: Predictive Models for Pairwise Matches*](https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/) 
 
+[*Tokyo 2020 Betting II: Model Refinement and Feature Engineering*](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/)
 
-So far in this series I've focused on predicting the outcome of matches between two athletes in the individual sprint, deriving *strength* values for each athlete, which determine the probability that they will win a given match. The athlete with the highest strength will be favourite to win every match that they contest - and will therefore also be the favourite to win the overall tournament. 
+[*Tokyo 2020 Betting III: From Matches to Medals... and Bookies*](https://www.infreq.com/posts/2021-08-03-tokyo-2020-stakes-holding/) **(This Post)**
+</details>
 
-<aside>
-Recap: if riders $r$ and $s$ have strengths $\alpha(r)$ and $\alpha(s)$ then the model believes
-$$\mathbf P[r\text{ beats }s] = \frac{e^{\alpha(r)}}{e^{\alpha(r)} + e^{\alpha(s)}}.$$
-</aside>
-To construct a betting strategy I will need to turn the probability that a given rider wins a single match, into the probability that they will win the whole tournament - and hence the gold medal.
+So far in this series I've focused on predicting the outcome of matches between single matches between two athletes, and derived a bespoke Bradley-Terry model for this purpose. To construct a betting strategy I will need to turn the probability that a given rider wins a single match, into the probability that they will win the whole tournament - and hence the gold medal.
 
-In the first section of this post I'll introduce the tournament format for the Tokyo 2020 Individual Sprint, and use the custom Bradley-Terry model developed in the previous posts to derive a distribution for the winner of the gold medal.
+In the first section of this post I'll introduce the tournament format for the Tokyo 2020 Individual Sprint, and use the custom Bradley-Terry model developed in the previous posts to derive a distribution for the gold medal winners.
 
-In the second part of this post I'll summarise the Kelly Criterion for multiple bets which will lead to a non-linear optimisation problem - the solution of which will  thto derive an optimal betting strategy based on my winning probabilities.
+In the second part I will summarise the Kelly Criterion for multiple bets, and explain how we can use this to derive a betting strategy that takes into account both the uncertainty implied by our model (even the strongest athlete won't always win) and the Bayesian (posterior) uncertainty in the athletes' strengths.
+
+At the very end I will log the actual bets that I placed on Tokyo 2020; a review of the successes and failures of the bets, and the analysis will be the focus of a final summary post to follow.
 
 ### Assumptions
 This post makes some assumptions about you!
@@ -142,7 +142,176 @@ Given the detailed tournament table above, and a set of athlete strengths $\alph
 
 ## Deriving the Betting Strategy
 
-## Summary of Bets Placed
+
+With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis.
+
+The analytical workflow to go from model optimisation through to betting stakes are complete, but drafting a full blog post detailing how I've gone from predicting individual matches to entire tournaments, and then the defining betting stakes was beyond me in the time available.
+
+<aside>All that detail in code form is available [here](https://github.com/odaniel1/track-cycling).</aside> 
+
+In due course this blog post will morph to contain the details of the analysis - but for now this will be a holding space to report the odds I was being offered, and the and the stakes I put against these.
+
+
+
+## Betting Log
+
+In total I allowed myself a budget of £20 - not exactly betting big, but also a non-negligible amount which will give me the flexibility to make a number of bets.
+
+For each of the men's and women's events I bet three times: 
+
+* Prior to qualifying - using historic data only.
+
+* Immediately after qualifying - including the qualifying times in the model.
+
+* Prior to the semi-finals - re-training the model to include the now observed preliminary rounds.
+
+At each stage I used the Kelly Criterion to set my stakes; to avoid blowing my budget early I capped my expenditure in earlier rounds at 1/6 of the total budget (£3.40).
+
+::::: {.panelset}
+
+::: {.panel}
+[Men]{.panel-name}
+
+### Pre-Qualifying
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PreQualifying.csv")
+```
+
+```{r stakes-table, echo = FALSE}
+stakes %>%
+  filter(capped_kelly_stakes > 0) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
+  kable("pipe", digits = 2)
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r no-stakes-table, echo = FALSE}
+stakes %>%
+  filter(capped_kelly_stakes == 0) %>%
+ select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
+  kable("pipe", digits = 2)
+```
+</details>
+
+<details>
+<summary>Notes</summary>
+The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
+
+Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
+</details>
+
+### Post Qualifying
+
+
+```{r,echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifying.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+<details>
+<summary>Notes</summary>
+These bets were placed ahead of the 1/32 finals; at this point 24 athlete's remained in the competition.
+
+Unfortunately at this point I'm already down £2.40 - Matthew Glaetzer was substituted out at the last minute, so is not competing.
+
+I maintained the cap of £3.40 used in the first round.
+</details>
+
+### Post Quarterfinals
+
+```{r,echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Men-PostQuarterfinals.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+
+<details>
+<summary>Notes</summary>
+These bets were placed following the quarterfinals, the day ahead of the semi-finals taking place.
+
+At this point the model is very stable and is predicting almost identical win probabilities for the leading athletes.
+
+In an effort to catch-up on the early loss on Glaetzer I'm going to lift my cap to £6.
+</details>
+:::
+
+::: {.panel}
+[Women]{.panel-name}
+
+
+### Pre-Qualifying
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Women-PreQualifying.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+<details>
+<summary>Notes</summary>
+The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
+
+Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
+</details>
+
+### Post Qualifying
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-06-Women-PostQualifying.csv")
+```
+
+```{r, stakes-table, echo = FALSE}
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, no-stakes-table, echo = FALSE}
+```
+</details>
+
+
+<details>
+<summary>Notes</summary>
+I've lifted the cap allowing me to bet up to £6.70. I've also decided to manually drop Lee Wai Sze's strength by 1 across all posterior samples as I believe the model is over estimating her strength based on historic performance. This is justified by her results in the Keirin, and the qualifying round for the sprint.
+</details>
+
+### Post Quarterfinals
+
+:::
+
+:::::
+
 
 ## Comments
 
