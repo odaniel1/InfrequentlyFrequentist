@@ -6,7 +6,7 @@ library(infreqthemes)
 source("~/Documents/R Projects/track-cycling/R/functions/forecasting.R")
 
 olympic_rounds <- read_rds('~/Documents/R Projects/track-cycling/_targets/objects/fcst_rounds_Men')
-strength_draw <- read_rds('~/Documents/R Projects/track-cycling/_targets/objects/fcst_strength_draws_Men') %>% filter(.draw == 1)
+strength_draw <- read_rds('~/Documents/R Projects/track-cycling/_targets/objects/fcst_strength_draws_Men') %>% filter(.draw == 1)  %>% mutate(time = 0)
 tournament_draw <- forecast_tournament(strength_draw, olympic_rounds, samples = 1, accumulate = TRUE, gold_only = FALSE) %>% distinct()
 
 rounds_long <- olympic_rounds %>%

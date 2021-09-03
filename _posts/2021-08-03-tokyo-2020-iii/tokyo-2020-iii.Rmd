@@ -1,8 +1,9 @@
 ---
 title: "Tokyo 2020 Betting III: From Matches to Medals... and Bookies"
 description: |
-  In this post I will use posterior draws from the Bradley-Terry model to derive the posterior distribution for the Gold medal winners of the track cycling Individual sprint. I'll then derive an optimal betting strategy using a spread-bet Kelly Criterion.  
+  In this post I will go from making individual match predictions using the Bradley-Terry model through to predicting the Gold medal winners of the track cycling Individual Sprint, and derive an optimal betting strategy based on a spread-bet Kelly Criterion optimised under posterior uncertainty.  
 date: 08-03-2021
+preview: img/tournament_prev.gif
 output:
   distill::distill_article:
     toc: true
@@ -11,9 +12,9 @@ output:
 categories:
   - Bayesian
   - Optimisation
+  - Decision Analysis
   - Cycling
 ---
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, code_folding = TRUE)
@@ -47,6 +48,8 @@ read_remote_target <- function(name, path = remote_targets_path){
   else{stop("Failed to read remote target")}
 }
 
+source(paste0(remote_project_path, 'R/functions/forecasting.R'))
+source(paste0(remote_project_path, 'R/functions/betting.R'))
 ```
 
 <details>
@@ -59,13 +62,17 @@ read_remote_target <- function(name, path = remote_targets_path){
 [*Tokyo 2020 Betting III: From Matches to Medals... and Bookies*](https://www.infreq.com/posts/2021-08-03-tokyo-2020-stakes-holding/) **(This Post)**
 </details>
 
-So far in this series I've focused on predicting the outcome of matches between single matches between two athletes, and derived a bespoke Bradley-Terry model for this purpose. To construct a betting strategy I will need to turn the probability that a given rider wins a single match, into the probability that they will win the whole tournament - and hence the gold medal.
+*Due to a lag in drafting vs analysis time, this post was originally published with betting stakes only. I have retrospectively added the detail of how these stakes were derived.*
 
-In the first section of this post I'll introduce the tournament format for the Tokyo 2020 Individual Sprint, and use the custom Bradley-Terry model developed in the previous posts to derive a distribution for the gold medal winners.
+So far in this series I've focused on predicting the outcome of single matches between two athletes, and derived a bespoke Bradley-Terry model for this purpose.
 
-In the second part I will summarise the Kelly Criterion for multiple bets, and explain how we can use this to derive a betting strategy that takes into account both the uncertainty implied by our model (even the strongest athlete won't always win) and the Bayesian (posterior) uncertainty in the athletes' strengths.
+To construct a betting strategy I will need to turn the probability that a given rider wins a single match, into the probability that they will win the whole tournament - and hence the gold medal.
 
-At the very end I will log the actual bets that I placed on Tokyo 2020; a review of the successes and failures of the bets, and the analysis will be the focus of a final summary post to follow.
+In the first section of this post I introduce the tournament format for the Tokyo 2020 Individual Sprint, and how the outputs of the Bradley-Terry model are used to derive a distribution for the gold medal winner.
+
+In the second part I summarise the Kelly Criterion for multiple bets, and explain how this can be used to derive a betting strategy that takes into account both the uncertainty implied by our model (even the strongest athlete won't always win) and our uncertainty of the parameters in the model (the Bayesian posterior uncertainty in the athletes' strengths).
+
+At the very end of the post I've included the log of the bets that I ended up placing.
 
 ### Assumptions
 This post makes some assumptions about you!
@@ -92,15 +99,11 @@ There are four main parts to the tournament structure, which in Tokyo 2020 will 
 
 * A *qualifying* round that sees all athletes competing individually to set the fastest time, with the six slowest athletes eliminated.
 
-* *1/2N Finals* that see the $2N$ remaining athletes compete in pairs. The winner of a single sprint automatically qualifies for the next 1/2M Final.
+* *1/32, 1/16* and *1/8 Finals* that see the athletes compete in pairs to win a single sprint. The winner automatically qualifies for the next round (eg. 1/32 Finals winners qualify for 1/16 Finals).
 
-* *Repechage* races that see the N losers from the 1/2N round competing to take the additional places in the next 1/2M Final.
+* *Repechage* races that see the losers from the previous finals round competing to take take the remaining places in the next round (eg. losers of 1/32 Finals compete for four remaining places in the 1/16 Finals).
 
-* *Quarter-, Semi-, and Finals* raced between pairs of riders. The match is contested in a best of three sprints format.
-
-For instance, in Tokyo the twelve winners of the 1/24 Final automatically qualify for the next main round.
-
-The twelve losing riders will be split into four repechage matches of three athletes, the four winners will join the twelve previous qualifiers and compete in the 1/16 final.
+* *Quarter-, Semi-, and Finals* raced between pairs of riders. At this stage each match is  contested in a best of three sprints format.
 :::
 
 :::{.panel}
@@ -109,11 +112,11 @@ The twelve losing riders will be split into four repechage matches of three athl
 | Round | Athletes Competing | Matches x Athletes per Match | Sprints per Match | Athletes Qualifying |
 |---|:-:|:-:|:-:|:-:|
 | Qualifying | 30 | 30 x 1 | 1 |24  |
-| 1/24 Finals | 24 | 12 x 2 | 1 | 12 |
+| 1/32 Finals | 24 | 12 x 2 | 1 | 12 |
 | *Repechage 1* | 12 | 4 x 3 | 1 | 4 |
 | 1/16 Finals | 16 | 8 x 2 | 1 | 8 |
 | *Repechage 2* | 8 | 4 x 2 | 1 | 4 |
-| 1/12 Finals | 12 | 6 x 2 | 1 | 6 |
+| 1/8 Finals | 12 | 6 x 2 | 1 | 6 |
 | *Repechage 3* | 6 | 2 x 3 | 1 | 2 |
 | Quarterfinals | 8 | 4 x 2 | Best of 3 | 4 |
 | Semifinals | 4 | 2 x 2 |  Best of 3 | 2 |
@@ -122,36 +125,560 @@ The twelve losing riders will be split into four repechage matches of three athl
 
 :::{.panel}
 [Tokyo 2020 Detail]{.panel-name}
-This is the detailed table published by the UCI in their [Track Regulations](https://www.uci.org/docs/default-source/rules-and-regulations/3-pis-20210610-e.pdf) which specifies the details of which riders will face each other.
+The tables below provide the detail that determines which riders face each other in each round; its adapted from the table published by the UCI in their [Track Regulations](https://www.uci.org/docs/default-source/rules-and-regulations/3-pis-20210610-e.pdf).
 
 The initial rider codes N1-N24 are in order of the time posted in the qualifying round: N1 is the fastest qualifier, N24 the slowest.
 
-```{r}
-read_remote_target("fcst_rounds_Men") %>%
-  select(-round_no,-competitors) %>%
-  kable("pipe") %>%
-  kable_styling(full_width = FALSE, bootstrap_options = list(condensed = TRUE), font_size = 7)
+```{r, results = 'asis', echo = FALSE}
+olympic_rounds <- read_remote_target("fcst_rounds_Men")
+
+round_names <- unique(olympic_rounds$round)
+
+for(r in round_names){
+  
+  t <- olympic_rounds %>%
+    filter(round == r)  %>%
+    select(-round_no,-competitors) %>%
+    kable("pipe") %>%
+    kable_styling(full_width = FALSE, bootstrap_options = list(condensed = TRUE), font_size = 7)
+
+  cat(sprintf("<details><summary>**%s**</summary>", r))
+  print(t)
+  cat("</details>")
+}
 ```
 
 :::
 :::::
 
-Given the detailed tournament table above, and a set of athlete strengths $\alpha_r$, we can simulate entire tournaments by sampling matches 
+To forecast the gold medal winner I will simulate results for each match in the tournament, using the detailed tournament structure tables above:
 
+* Pair riders based on their qualifying times, and the details in the 1/32 Finals table (in the Tokyo 2020 Detail tab above).
+
+* Sample the winner/loser of each match using the Bernoulli distribution that is implied by the Bradley-Terry model (recapped below). Assign each rider the appropriate winner/loser code, from the detailed table.
+
+* Repeat the above for each of the successive rounds, until the Gold medal winner is decided.
+
+That sounds simple enough, but there are a few things for us to unpack here.
+
+### Sampling a Single Match (Recap of the Bradley-Terry model)
+
+The Bradley-Terry model assumes that in a match between athletes $r$ and $s$ then
+
+$$\mathbf P[r \text{ beats } s] = \frac{\beta_r}{\beta_r + \beta_s}.$$
+
+The previous posts have focused on estimating the parameters $\beta_r$, with the final model taking the form $\beta_r = \exp \left( \alpha_r^{(m)} + \kappa t_r \right)$, where
+
+* $\alpha_r^{(m)}$ is the estimated athlete strength going into the match, $m$, taking into account time varying effects and a home advantage (in the case of Tokyo only affecting the two Japanese competitors).
+
+* $t_r$ is the athlete's qualifying time in the current competition, and along with the estimated coefficient $\kappa$ this allows us to take into account the athlete's current form.
+
+So given a set of parameter estimates $(\beta_r)$ the above formula will allow me to sample the outcome of any individual match - and hence ultimately the outcome of the entire tournament.
+
+### Sampling a Tournament
+
+Sampling a tournament is just a case of sampling match outcomes, and then using the detailed tournament information in the tabs above to identify who to pair in the next round of matches. The animation below gives an example of this dynamic.
+
+```{r tournament-animation, echo=FALSE, layout='l-body', preview = TRUE}
+knitr::include_graphics('img/tournament_body.gif')
+```
+
+There are two nuances that require minor tweaks. The first is that some of the repechage races, the additional that allow the losers to compete for spare places in the next round, are between three athletes not two. This has a simple resolution as the Bradley-Terry model can be extended to consider matches between three (or more) athletes as follows
+
+$$
+\begin{align}
+\mathbf P[r \text{ beats } s \text{ and } q\,] = \frac{\beta_r}{\beta_r + \beta_s + \beta_q}.
+\end{align}
+$$
+
+The second is that from the quarterfinals onward, matches are contested in a best-of-three format, and this changes the probability of winning. This was covered in detail in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/#the-match-likelihood) so I won't recap here.
+
+### Monte-Carlo Uncertainty
+
+Tournament results derived using the simulation *algorithm* set out above will have uncertainty since I am sampling the winner of each match from a probability distribution.
+
+To account for this, I won't just sample a tournament once - I'll repeat the tournament multiple times (independently) from which I can say not only the most likely winner of the Gold medal, but also the probability that they will win: this probability will be key for informing when to bet.
+
+<aside>This is a simple example of a [*Monte Carlo* algorithm](https://en.wikipedia.org/wiki/Monte_Carlo_method).</aside>
+
+Running the simulation 1000 times on the same set of parameters as were used above, we can report the frequency with which each rider wins the gold medal.
+
+```{r}
+olympic_rounds <- read_remote_target('fcst_rounds_Men')
+strength_draw <- read_remote_target('fcst_strength_draws_Men') %>% filter(.draw == 1)
+
+# set time to 0, assuming that the qualifying times are not yet observed
+strength_draw <- strength_draw %>% mutate(time = 0)
+
+set.seed(14142)
+gold_samples <- forecast_tournament(strength_draw, olympic_rounds, samples = 5000, accumulate = FALSE, gold_only = TRUE)
+
+gold_probs <- gold_samples %>%
+  count(rider, sort = TRUE) %>%
+  mutate(p = percent(n/sum(n),digits=0)) %>%
+  filter(p > 0.005)
+  
+gold_probs %>%
+  kable("pipe", col.names = c('Athlete', 'Gold Frequency', 'Gold %')) %>%
+  kable_styling(bootstrap_options = "condensed", full_width = FALSE, position = "center", font_size = 14)
+```
+
+Under the assumption that the model is correct and we've learnt the exact true parameter values, then the percentage figures can be interpreted as the probability that the athlete will win the gold medal.
+
+### Bayesian Uncertainty
+
+In reality my model is just that - a model, so it won't exactly capture reality, and further the parameters are estimates based on historic data: so in addition to the uncertainty implied by the model (the Monte Carlo uncertainty, above), I have reason to be uncertain about the model itself.
+
+This uncertainty in the model is captured by the Bayesian posterior distribution of the model parameters. Since I fit the model in Stan, I have samples from the posterior distribution so I can propagate my uncertainty about the model parameters to uncertainty about the gold medal probabilities by running tournament simulations against each draw from the posterior distribution.
+
+The examples below show the gold medal distributions for the top three athletes going into the Tokyo 2020 Olympics, with the vertical lines denoting the posterior mean.
+
+```{r}
+bayes_gold_probs <- read_remote_target("fcst_gold_probs_Men")
+
+most_probable <-  bayes_gold_probs %>%
+  group_by(rider) %>%
+  summarise(
+    mean_gold_prob = mean(gold_prob)
+  ) %>%
+  ungroup() %>%
+  mutate(rank = rank(-mean_gold_prob))
+
+bayes_gold_probs <- bayes_gold_probs %>%
+  left_join(most_probable) %>%
+  mutate(rider = fct_reorder(rider, rank))
+
+
+
+ggplot(bayes_gold_probs %>% filter(rank <= 3)) +
+  geom_histogram(aes(gold_prob), binwidth = 0.1, color = infreq_palette["beige"]) +
+  geom_vline(data = most_probable %>% filter(rank <= 3), aes(xintercept = mean_gold_prob), color = infreq_palette["darkblue"], linetype = "dashed") +
+  scale_x_continuous(breaks = c(0, 0.5, 1), labels = scales::percent_format(accuracy=1)) +
+  facet_wrap(vars(rider), strip.position = "bottom") +
+  theme(
+    axis.title = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.y = element_blank(),
+    strip.text=element_text(size = 12, color = infreq_palette["darkblue"]),
+    strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+    strip.placement = "outside"
+  )
+```
+
+<aside>Since qualifying was yet to occur, all athletes were given the same qualifying time.</aside>
+
+The distributions above are a good reminder that uncertainty in the real world isn't all about normal distributions; in particular their bimodal nature indicates that an analysis that is based on a single point estimate of the gold medal probability for each athlete is hardly going to capture the *average* scenario - further justifying the need to account for uncertainty in the modelling.
+
+If my original Bradley-Terry model was in the frequentist framework, I would have single parameter estimates and confidence intervals for those values. But confidence intervals do not imply distributions, so we cannot sample from them, and so its not clear how to get uncertainty intervals for the gold medal probability.
+
+<aside>Short of writing a likelihood that encapsulates both the Bradley-Terry model and the tournament dynamic - but that is daunting, if doable at all.</aside>
+
+This ability to propagate the uncertainty from the original Bradley-Terry model, to downstream calculations is one of [my motivations](https://www.infreq.com/about.html#why-infrequently-frequentist) for preferring Bayesian models over their frequentist equivalents: 
 
 
 ## Deriving the Betting Strategy
 
+With predictions for the likely winners, its time to think about how best to use these predictions to inform a betting strategy.
 
-With the qualifying rounds of the Men's individual sprint starting tomorrow, its time to put some money behind my analysis.
+The simple strategy would be to place bets on the athletes who you believe are most likely to win, but this is sub-optimal for a number of reasons:
 
-The analytical workflow to go from model optimisation through to betting stakes are complete, but drafting a full blog post detailing how I've gone from predicting individual matches to entire tournaments, and then the defining betting stakes was beyond me in the time available.
+* This strategy does not inform us of how much to bet, only who to bet on.
 
-<aside>All that detail in code form is available [here](https://github.com/odaniel1/track-cycling).</aside> 
+* Depending on the odds offered by the bookies, the risk may not be worth the return: i.e. if I forecast that Lavreyson has a probability 0.9 of winning, but the bookies are offering odds of 1/9, then the expected return on a £1 bet is £0.90, so I can expect to lose money.
 
-In due course this blog post will morph to contain the details of the analysis - but for now this will be a holding space to report the odds I was being offered, and the and the stakes I put against these.
+<aside> Fractional odds of $a/b$ mean that a winning bet of 1 unit will receive back $1 + a/b$, the original stake plus the fractional odds.</aside>
+
+* From the histograms above we can see that the most likely winner varies across our posterior uncertainty - so I'd at least need to define a way to identify this person across all draws.
+
+Fortunately there's pre-existing literature on betting strategies that I can draw on for my application, namely I'll consider a variant of the classic Kelly Criterion.
+
+### Betting Strategy for Single Bets
+
+To set-up the theory, lets consider a simple scenario: suppose I'm offered odds $O$ to play a game for which we know ahead of time that we have probability of winning is $p$. If I have a total budget $B$ that I'm willing to invest in gambling, then how much of this should I be willing to bet?
+
+If I'm only ever going to place a single bet, intuition would suggest that I should either bet my entire gambling budget (if I think the odds are favourable), or I should refrain from betting entirely.
+
+This aligns to the strategy in which I choose to invest the fraction $f$ of my total wealth that maximises the expected wealth after the bet. To see this, if I bet $0 \leq f \leq 1$ of my wealth the expected return is
+
+$$\underbrace{(1-p) \times (1-f)B}_{\text{I lose the bet}} + \underbrace{p \times (B + fBO)}_{\text{I win}} = (1-f)B + fBp(1+O)
+$$
+
+Since the formula is linear in $f$ the maximum will be achieved at one of $f = 0$ (if the derivative, in $f$, of the expression above is negative) or $f = 1$ (if its positive). Calculating the derivative we find that the strategy that maximises expected wealth is:
+
+$$\text{If $p > (1+O)^{-1}$ bet the full budget $B$ ($f = 1$), otherwise do not bet ($f = 0$).}$$
+
+Now suppose however that I intend to place more than one bet, and moreover that I'm willing to reinvest my previous winnings into future bets: is it still wise that so long as the odds are favourable, I should bet my entire budget each time?
+
+Proceeding as above, one can show that the expected wealth after playing $n$ games (or until I go bust, whichever happens first) is still maximised by betting my full budget, including reinvestment, and this has an expected return of
+
+$$\big\{pB(1+O)\big\}^n.$$
+
+Since this tends to infinity with $n$, it would suggest that not only should I bet my entire budget each time I win, but I should be willing to keep playing for arbitrarily long.
+
+But that strategy is absurd: eventually I am guaranteed to lose one of the bets, losing my entire accrued budget, and I won't be able to bet anymore.
+
+<aside> This is similar to the [St. Petersburg paradox](https://en.wikipedia.org/wiki/St._Petersburg_paradox).</aside>
 
 
+This is demonstrated in the example below where I've simulated the outcome of 1,000 independent gamblers with a starting budget $B = 1$, using this strategy to play a game with probability $p = 2/3$ of winning, offered at odds of 2 - 1, $O = 2$, (so that the expected return from a single game is 2). For the simulation I've run to a maximum of 20 games.
+
+```{r}
+set.seed(1414214)
+
+# samples the outcome of betting on a single game, and returns the winnings
+# based on using the strategy that maximises expected wealth.
+r_game_max_exp_wealth <- function(B, p, O){
+  
+  # if no wealth, don't bet
+  if(B == 0){return(0)}
+  
+  # don't bet if the odds are not in favour
+  if(p < (1+O)^{-1}){ return(B)}
+  
+  # otherwise bet all of the budget
+  outcome <- rbinom(1, size = 1, prob = p)
+  
+  wealth <- B * (1+O) * outcome
+
+  return(wealth)
+}
+
+# samples a sequence of n identical games assuming returns are reinvested into 
+# the budget, and that the strategy is to maximise expected wealth
+r_seq_games_max_exp_wealth <- function(n, B, p, O){
+  rep(O,n) %>% accumulate(.f = function(B,O){r_game_max_exp_wealth(B,p,O)}, .init = 1)  
+}
+
+# multiple draws for a gambler who plays the game 20 times, withan initial budget of 1
+# probability of winning 2/3 and odds of 2-1.
+game_samples <- tibble(sample = 1:1000) %>%
+  rowwise() %>%
+  mutate(run = map(sample, ~tibble(game = 0:20, budget = r_seq_games_max_exp_wealth(20,1,2/3,2)))) %>%
+  unnest(run)
+
+# for plotting, add zeros so that vertical lines show where the budget goes to zero.
+add_zeros <- game_samples %>%
+  filter(budget == 0) %>%
+  group_by(sample) %>%
+  slice(which.min(game)) %>%
+  mutate(game = game - 1) %>%
+  ungroup()
+
+game_samples <- bind_rows(game_samples, add_zeros)  
+
+# plot game outcomes
+p_max_exp_wealth <- ggplot(game_samples) + geom_line(aes(game, log10(budget), group = sample), alpha = 0.05) +
+  scale_y_continuous(breaks = seq(0,9,by=3), labels = scales::math_format(10^.x)) +
+  xlab("Game") + ylab("Accrued Wealth")
+
+p_max_exp_wealth
+```
+
+Of the 1,000 gamblers sampled, `r game_samples %>% filter(game == 20) %>% filter(budget > 0) %>% nrow` made it to the 20th game without going bust.
+
+The message to take away is that maximising expected wealth is not a sensible strategy for repeated betting with reinvestment.
+
+### The Kelly Criterion (for Binary Outcomes)
+
+The optimal strategy for the scenario of repeated bets with reinvestment was identified by John Kelly in 1956; the [original paper](https://www.princeton.edu/~wbialek/rome/refs/kelly_56.pdf) is relatively accessible and provides a detailed derivation of the result, so I'll stick to a summary.
+
+The key observation of Kelly is that rather than looking to maximise expected wealth, instead we should aim to maximise expected *log* wealth, which after a single game is
+
+$$
+\begin{align}
+(1-p) \log((1-f)B) + & p \log( B + fBO) = \\ & \log(B) + (1-p)\log(1-f) + p\log(1 + fO)
+\end{align}$$
+
+The plot below shows how the log expected wealth varies as we change the fraction of wealth invested, $f$, assuming the same parameter values in the simulation above: $B = 1,\, p = 2/3, \, O = 2$. 
+
+```{r}
+ggplot(tibble(f=c(0,0.99), y = c(-1,1)), aes(f,y)) +
+  stat_function(aes(f), fun = function(f) 1/3 *log(1-f) + 2/3 * log(1 + 2*f), color = infreq_palette["darkblue"]) +
+  # maximum achieved at f = 1/2
+  geom_segment(x = 0.5, xend = 0.5, y = -1, yend= 1/3 *log(1/2) + 2/3 * log(2), color = infreq_palette["orange"], linetype = "dashed") +
+  xlab("Fraction of Wealth Gambled") + ylab("Expected Log Return")
+```
+
+For this particular set of parameters the maximum is achieved at $f = \frac12$, so the Kelly bet would be to always bet half of your current budget in the next round. More generally, the equation above can be solved by hand, and the optimal bet is given by 
+
+<aside>Using the standard method of solving for zeros of the derivative.</aside>
+
+$$f^* = p - O^{-1}(1-p).$$
+
+The below overlays the outcome of a further 1,000 gamblers playing the same game as before, but adopting the Kelly Criterion.
+
+```{r}
+set.seed(1414214)
+
+# samples the outcome of betting on a single game, and returns the winnings
+# based on using the strategy that maximises expected log wealth (Kelly bet).
+r_game_max_log_wealth <- function(B, p, O){
+  
+  # if no wealth, don't bet
+  if(B == 0){return(0)}
+  
+  # outcome of the game (1 = win, 0 = lose)
+  outcome <- rbinom(1, size = 1, prob = p)
+  
+  kelly_bet <- B * (p -(1-p)/O)
+  
+  wealth <- if_else(outcome == 0, B - kelly_bet, B + kelly_bet * O)
+
+  return(wealth)
+}
+
+# samples a sequence of n identical games assuming returns are reinvested into 
+# the budget, and that the strategy is to maximise expected wealth
+r_seq_games_max_log_wealth <- function(n, B, p, O){
+  rep(O,n) %>% accumulate(.f = function(B,O){r_game_max_log_wealth(B,p,O)}, .init = 1)  
+}
+
+# multiple draws for a gambler who plays the game 20 times, withan initial budget of 1
+# probability of winning 2/3 and odds of 2-1.
+game_kelly_samples <- tibble(sample = 1:1000) %>%
+  rowwise() %>%
+  mutate(run = map(sample, ~tibble(game = 0:20, budget = r_seq_games_max_log_wealth(20,1,2/3,2)))) %>%
+  unnest(run)
+
+
+# plot game outcomes
+p_kelly <- p_max_exp_wealth +
+  geom_line(data = game_kelly_samples, aes(game, log10(budget), group = sample), alpha = 0.025, color = infreq_palette["darkblue"])
+
+p_kelly
+```
+
+We previously saw that `r game_samples %>% filter(game == 20) %>% filter(budget > 0) %>% nrow` of the gamblers maximising expected wealth had any money at the end of 20 games, whereas `r game_samples %>% filter(game == 20) %>% filter(budget > 1) %>% nrow` of the 1,000 gamblers employing the Kelly strategy had increased their budget by the end of 20 games.
+
+Kelly's result is that using this strategy is guaranteed in the limit (i.e. if you were to have infinitely many opportunities to play the game) to lead to higher wealth than any other betting strategy.
+
+Its worth noting of course that there are two major assumptions in the theoretical model that won't hold in the real world: 
+
+* the gambler is given the opportunity to play the game infinitely often: nobody has that much time on the planet, let alone time to play games,
+
+* the gambler knows the true probability of winning the game.
+
+A practical way of resolving both of these limitations, which Wikipedia [assures me](https://en.wikipedia.org/wiki/Kelly_criterion#Criticism) is common practice in financial portfolio optimisation, is to play a more conservative strategy: betting a fixed fraction of the proposed Kelly strategy to account for further volatility.
+
+In my Bayesian setting I'll be able to account for the second issue by optimising the Kelly criterion over the draws from my posterior distributions.
+
+### Allowing for Spread Betting
+
+I'll now turn to the specifics of implementing the Kelly Strategy for my Olympic betting: first looking at how to generalise the criteria for games with more than two outcomes
+
+The bets I'm looking to place are on the Gold medal winner for each of the men's and women's Individual Sprints; so for now that's a total of two games, far from the infinite number underpinning the theory, but if all goes well that's not to say I won't bet on the World Championships in October!
+
+For now I'll consider a single one of the two events, let's say the Men's, and suppose that I have a fixed set of probabilities that describe the likelihood of each rider winning: $(p_r)_{r = 1}^R$.
+
+<aside>How to account for the Bayesian uncertainty is the content of the next section.</aside>
+
+Extending the notation from before, I'll suppose I've found a bookmaker (or even a number of independent bookmakers) willing to offer odds $O_r$ on rider $r$. Given a total budget $B$, what fraction $f_r$ of this should I invest in rider $r$?
+
+Applying the heuristic of Kelly's criterion, I'll aim to maximise my log wealth, which in the multi-outcome scenario is given by:
+
+$$
+\begin{align}
+\sum_{r = 1}^R \, p_r \, \times \, & \log \big(\underbrace{B(1-F)}_{\text{Not gambled}} + \underbrace{ Bf_rO_r}_{\text{r wins}}\big) = \\
+\\
+&  \qquad \log(B) + \sum_{r = 1}^R  p_r \log(1 - F + f_rO_r)
+\end{align}
+$$
+
+where $F = \sum_r f_r$ is the total fraction of wealth invested across all athletes.
+
+The spread-bet Kelly criterion will therefore look to find the fractions $(f_r)_{r=1}^R$ that maximise this expression, subject to the constraints that the fractions must be positive (I can't bet a negative proportion of my wealth) and must sum to less than $1$ (I cannot exceed my budget).
+
+That is we have the following non-linear constrained optimisation problem:
+
+$$
+\begin{aligned}
+& \text{maximize}
+& &  \textstyle{\sum_{r=1}^R} p_r \log (1 - F + f_rO_r) \\
+& \text{subject to}
+& &   f_r \geq 0,  \,\qquad 1 \leq r \leq R \\
+& & & \textstyle{\sum_{r=1}^R} f_r = F \leq 1 
+\end{aligned}
+$$
+
+Rather than trying to solve this analytically I'll us computational solvers; in this instance I'll use the [NLopt](https://nlopt.readthedocs.io/en/latest/) package of solvers through the R library [`nloptr`](https://cran.r-project.org/web/packages/nloptr/index.html).
+
+NLopt is a powerful package, with a range of different optimisation algorithms; I opted for the [COBYLA](https://nlopt.readthedocs.io/en/latest/NLopt_Algorithms/#cobyla-constrained-optimization-by-linear-approximations) (Constrained Optimisation by Linear Approximations) algorithm, which benefits from not requiring the user to derive and supply the gradient of the function to be optimised.
+
+The code below provides a minimal example showing how to set-up NLopt to run the COBYLA algorithm for the simple two-outcome Kelly strategy described in the previous section.
+
+<details>
+<summary>nloptR: Minimal Example</summary>
+I'll find the solution to the original Kelly Criterion, based on the example game discussed in previous sections. The aim is to solve:
+
+$$
+\begin{aligned}
+& \text{maximize}
+& &  \frac13 \log(1-f) + \frac23 \log(1 + 2f) \\
+& \text{subject to}
+& &   0 \leq f \leq 1
+\end{aligned}
+$$
+We already saw that this can be solved by hand, and that the maximum is achieved at $f^* = \frac12$.
+
+The code below provides a computational approximation to the solution: 
+```{r, echo = TRUE, code_folding = FALSE}
+library(nloptr)
+
+# expected logarithm of wealth after one round of the game described above.
+expected_log_wealth <- function(f){ 1/3 * log(1-f) + 2/3 * log(1 + 2*f)}
+
+# nloptr is configured to always find minima; so we will need to use the
+# negative of the above (the minima of this coincides with the maxima of
+# the original function).
+neg_expected_log_wealth <- function(f){ -1 * expected_log_wealth(f)}
+
+solve <- nloptr(
+  # guess of the value f at which the maximum might be achieved; for
+  # demonstration purposes deliberately avoiding 0.5.
+  x0 = 0.1,
+  
+  # the function to minimise
+  eval_f = neg_expected_log_wealth,
+  
+  # lower/upper bound constraint on f
+  lb = 0,
+  ub = 1,
+  
+  opts = list(
+    # the algorithm to use; I'm using COBYLA.
+    "algorithm"="NLOPT_LN_COBYLA",
+    
+    # the tolerance at which the algorithm will decide it has converged
+    "xtol_rel"=1.0e-4,
+    
+    # the maximum number of iterations to try before stopping
+    "maxeval"=1e5
+  )
+) 
+
+print(solve)
+```
+
+Looking at the output above, the algorithm ran for a total of `solve[["iterations"]]` before converging to a solution within the provided tolerance; moreover it estimates $f^* \approx `r solve[["solution"]]`$, which is a good approximation to the true solution.
+
+</details>
+
+Returning to the cycling model, we're now in a position to optimise a betting strategy based on a fixed point estimate of the winning probabilities. For this I'll use the posterior mean winning probabilities returned from the Bayesian model run with historic data, and prior to the qualifying round at Tokyo 2020.
+
+Odds were available to bet at Unibet.com, and for this analysis I'm using the odds that I was offered on 3rd August 2020 - the day before the qualifying round for the Men's event.
+
+The plot below shows my point estimates of the athlete's winning probabilities, against the odds on offer; the curve denotes the boundary at which betting on the rider is expected to have a positive return, and our intuition would say that any betting strategy should avoid placing money on athletes who are below this line.
+
+```{r}
+odds <- read_csv("../../../track-cycling/data/202021_2020-TOKYO-OLYMPICS_Odds.csv") %>%
+  filter(odds_date == ymd(20210803), gender == 'Men') %>%
+  select(rider, fractional_odds) %>%
+  mutate(
+    odds = 1 + fractional_odds,
+    # the probability the bookies imply they believe
+    implied_probability = 1/odds,
+    # account for the fact that they run a 'Dutch Book'
+    normalised_implied_probability = implied_probability / sum(implied_probability)
+  )
+
+odds <- odds %>% left_join(most_probable) %>%
+  mutate(
+    annotation = if_else(
+      mean_gold_prob > odds^(-1),
+      # rider %in% c("LAVREYSEN HARRIE", "GLAETZER MATTHEW"),
+      str_extract(rider, "^([^ ])+"), ""),
+  )
+
+ggplot(odds) +
+  geom_point(aes(mean_gold_prob, fractional_odds), size =2) +
+  geom_text(aes(mean_gold_prob, fractional_odds, label = annotation), hjust =-0.2, color = infreq_palette["darkblue"]) +
+  stat_function(data = tibble(p = c(0.05,1)), aes(p), fun = function(p) 1/p -1, color = infreq_palette["darkblue"], linetype = "dashed") +
+  scale_x_continuous(breaks = seq(0,1,by = 0.2)) +
+  coord_cartesian(xlim = c(0,1)) +
+  xlab("Posterior Mean Gold Probability") +
+  ylab("Odds Offered")
+```
+
+Solving the optimisation problem for these inputs results in the following proposed bets:
+
+<aside>The full code for optimising the multi-outcome bet is available on [GitHub](https://github.com/odaniel1/track-cycling/blob/master/R/functions/betting.R).</aside>
+
+
+```{r,message= FALSE, warning = FALSE,results='hide'}
+# summarise point estimate (mean posterior probability) winning probabilities
+point_estimate_probs <- most_probable %>%
+  transmute(.draw = 1, rider, gold_prob = mean_gold_prob)
+
+# solve the multi-outcome spread-bet Kelly strategy; note since only a single draw
+# is provided using the optimise_kelly_bayes function does optimisation without
+# uncertainty (eg. ignore the Bayes bit)
+point_estimate_strategy <- optimise_kelly_bayes(odds, point_estimate_probs)
+
+point_estimate_strategy <- point_estimate_strategy %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2)) %>%
+  select(rider, fractional_odds, mean_gold_prob, kelly_stakes)
+```
+
+```{r, echo = FALSE}
+point_estimate_strategy %>%
+  filter(kelly_stakes > 0) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds,
+    `Modelled Gold Prob.` = mean_gold_prob, `Stake` = kelly_stakes
+  ) %>%
+  kable("pipe", digits = 2)
+```
+
+<details>
+<summary>All Other Odds</summary>
+```{r, echo = FALSE}
+point_estimate_strategy %>%
+  filter(kelly_stakes == 0) %>%
+  arrange(fractional_odds) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds,
+    `Modelled Gold Prob.` = mean_gold_prob, `Stake` = kelly_stakes
+  ) %>%
+  kable("pipe", digits = 2)
+```
+</details>
+
+Overall the strategy suggests I should bet on just `r point_estimate_strategy %>% filter(kelly_stakes > 0) %>% nrow` of the athletes, and invest `r percent(sum(point_estimate_strategy$kelly_stakes),0)` of my total budget.
+
+Interestingly the solution is proposing that I should bet on Harrie Lavreysen, even though the plot above indicates that this bet is expected to lose money. My intuition here is that perhaps this is to offset the riskier bet on Matthew Glaetzer - though I haven't fully worked through this yet.
+
+<aside>My alternative intuition is that I have a bug in my code, or the solver hit its tolerance.</aside>
+
+### Accounting for Bayesian Uncertainty
+
+Earlier in the post we saw that the point estimates for each athlete's probability of winning are a somewhat unsatisfactory summary of the underlying distributions which are bi-model.
+
+The plot below replicates the comparison between winning probabilities, and bookies odds: but now shows posterior 80% credible intervals against each athlete. For clarity I've only included those athletes who are have a positive expected return in at least 10% of the posterior draws.
+
+```{r}
+bayes_gold_probs_80 <- bayes_gold_probs %>% left_join(odds) %>%
+  group_by(rider,fractional_odds, odds) %>%
+  summarise(
+    gold_lwr_80 = quantile(gold_prob, 0.1),
+    gold_median = quantile(gold_prob, 0.5),
+    gold_upr_80 = quantile(gold_prob, 0.9)
+  ) %>%
+  # only include athletes who have a >10% chance of a positive return.
+  filter(gold_upr_80 > odds^(-1)) %>%
+  mutate(
+    annotate = str_extract(rider, "^([^ ])+")
+  )
+
+ggplot(bayes_gold_probs_80) +
+  geom_segment(aes(x = gold_lwr_80, xend = gold_upr_80, y = fractional_odds, yend = fractional_odds), color = infreq_palette["orange"]) +
+  geom_text(aes(x = gold_upr_80, y= fractional_odds, label = annotate), hjust = -0.1,color = infreq_palette["darkblue"]) +
+  stat_function(data = tibble(p = c(0.05,1)), aes(p), fun = function(p) 1/p -1, color = infreq_palette["darkblue"], linetype = "dashed") +
+  scale_x_continuous(breaks = seq(0,1,by = 0.2)) +
+  coord_cartesian(xlim = c(0,1.2), ylim = c(0,25)) +
+  xlab("Posterior Gold Probability") +
+  ylab("Odds Offered")
+```
 
 ## Betting Log
 
