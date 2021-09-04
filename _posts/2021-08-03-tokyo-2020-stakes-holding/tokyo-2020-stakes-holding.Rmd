@@ -197,6 +197,32 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-06-Women-PostQualif
 
 ### Post Quarterfinals
 
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-07-Women-PostQuarterfinals.csv")
+```
+
+Having run the model with the latest data, I've decided not to add to my bets for the womens event - of the six athletes I bet on in the previous round, four of them have gone through to the semi-finals: but the odds have now shortened.
+
+The model wanted me to back Lee Wai Sze again - however an oversight in my approach is that at the moment all of the bets are being placed independently. I'm fairly confident that a model that properly accounts for the dependence wouldn't recommend I bet again, so I'll over ride the model's decision.
+
+Other than Lee Wai Sze the model only wanted to put a few pennies on two other athletes - so it didn't seem worth it (and again this is in absence of the dependence point above).
+
+The details below have the odds offered, and the stakes that the model wanted me to make.
+
+<details>
+<summary>All Other Odds</summary>
+```{r echo = FALSE}
+stakes %>%
+ select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Proposed Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
+  kable("pipe", digits = 2)
+```
+</details>
+
+
 :::
 
 :::::
