@@ -70,9 +70,9 @@ To construct a betting strategy I will need to turn the probability that a given
 
 In the first section of this post I introduce the tournament format for the Tokyo 2020 Individual Sprint, and how the outputs of the Bradley-Terry model are used to derive a distribution for the gold medal winner.
 
-In the second part I summarise the Kelly Criterion for multiple bets, and explain how this can be used to derive a betting strategy that takes into account both the uncertainty implied by our model (even the strongest athlete won't always win) and our uncertainty of the parameters in the model (the Bayesian posterior uncertainty in the athletes' strengths).
+In the second part I will introduce the Kelly Criterion, and derive generalisations that allow for multiple outcome bets, handling posterior uncertainty, and accounting for additional caution.
 
-At the very end of the post I've included the log of the bets that I ended up placing.
+At the end of the post I've included the log of the bets that I ended up placing, that were originally published in a holding post whilst the event was running.
 
 ### Assumptions
 This post makes some assumptions about you!
@@ -89,7 +89,7 @@ If you're interested in reading the underlying code, this is in R..
 
 The Individual Sprint has a complex tournament structure, which will see the winning athlete compete between 10 and 16 sprints before they can claim the medal!
 
-There are four main parts to the tournament structure, which in Tokyo 2020 will see 30 athletes compete:
+There are four main parts to the tournament, which in Tokyo 2020 will see 30 athletes compete:
 
 ::::: {.panelset}
 
@@ -101,7 +101,7 @@ There are four main parts to the tournament structure, which in Tokyo 2020 will 
 
 * *1/32, 1/16* and *1/8 Finals* that see the athletes compete in pairs to win a single sprint. The winner automatically qualifies for the next round (eg. 1/32 Finals winners qualify for 1/16 Finals).
 
-* *Repechage* races that see the losers from the previous finals round competing to take take the remaining places in the next round (eg. losers of 1/32 Finals compete for four remaining places in the 1/16 Finals).
+* *Repechage* races that see the losers from the previous round competing to take take any remaining places in the next round (eg. losers of 1/32 Finals compete for four remaining places in the 1/16 Finals).
 
 * *Quarter-, Semi-, and Finals* raced between pairs of riders. At this stage each match is  contested in a best of three sprints format.
 :::
@@ -151,9 +151,11 @@ for(r in round_names){
 :::
 :::::
 
-To forecast the gold medal winner I will simulate results for each match in the tournament, using the detailed tournament structure tables above:
+To forecast the gold medal winner I will simulate results for each match in the tournament, using the detailed tournament structure tables above.
 
-* Pair riders based on their qualifying times, and the details in the 1/32 Finals table (in the Tokyo 2020 Detail tab above).
+In short, simulating the tournament will involve:
+
+* Using the rider qualifying times to pair riders based on the details in the 1/32 Finals table (in the Tokyo 2020 Detail tab above).
 
 * Sample the winner/loser of each match using the Bernoulli distribution that is implied by the Bradley-Terry model (recapped below). Assign each rider the appropriate winner/loser code, from the detailed table.
 
@@ -167,13 +169,14 @@ The Bradley-Terry model assumes that in a match between athletes $r$ and $s$ the
 
 $$\mathbf P[r \text{ beats } s] = \frac{\beta_r}{\beta_r + \beta_s}.$$
 
+Given a set of parameters $(\beta_r)$ I can use the formula above to sample the winner of any given match, as required in step two above.
+
 The previous posts have focused on estimating the parameters $\beta_r$, with the final model taking the form $\beta_r = \exp \left( \alpha_r^{(m)} + \kappa t_r \right)$, where
 
 * $\alpha_r^{(m)}$ is the estimated athlete strength going into the match, $m$, taking into account time varying effects and a home advantage (in the case of Tokyo only affecting the two Japanese competitors).
 
 * $t_r$ is the athlete's qualifying time in the current competition, and along with the estimated coefficient $\kappa$ this allows us to take into account the athlete's current form.
 
-So given a set of parameter estimates $(\beta_r)$ the above formula will allow me to sample the outcome of any individual match - and hence ultimately the outcome of the entire tournament.
 
 ### Sampling a Tournament
 
@@ -183,7 +186,7 @@ Sampling a tournament is just a case of sampling match outcomes, and then using 
 knitr::include_graphics('img/tournament_body.gif')
 ```
 
-There are two nuances that require minor tweaks. The first is that some of the repechage races, the additional that allow the losers to compete for spare places in the next round, are between three athletes not two. This has a simple resolution as the Bradley-Terry model can be extended to consider matches between three (or more) athletes as follows
+There are two nuances that require minor tweaks. The first is that some of the repechage races, are contested by three athletes not two. This has a simple resolution as the Bradley-Terry model can be extended to consider matches between three (or more) athletes as follows
 
 $$
 \begin{align}
@@ -248,8 +251,6 @@ bayes_gold_probs <- bayes_gold_probs %>%
   left_join(most_probable) %>%
   mutate(rider = fct_reorder(rider, rank))
 
-
-
 ggplot(bayes_gold_probs %>% filter(rank <= 3)) +
   geom_histogram(aes(gold_prob), binwidth = 0.1, color = infreq_palette["beige"]) +
   geom_vline(data = most_probable %>% filter(rank <= 3), aes(xintercept = mean_gold_prob), color = infreq_palette["darkblue"], linetype = "dashed") +
@@ -266,11 +267,11 @@ ggplot(bayes_gold_probs %>% filter(rank <= 3)) +
   )
 ```
 
-<aside>Since qualifying was yet to occur, all athletes were given the same qualifying time.</aside>
+<aside>Posterior gold medal probabilities, based on a model run prior to qualifying - so all athletes were given the same qualifying time.</aside>
 
-The distributions above are a good reminder that uncertainty in the real world isn't all about normal distributions; in particular their bimodal nature indicates that an analysis that is based on a single point estimate of the gold medal probability for each athlete is hardly going to capture the *average* scenario - further justifying the need to account for uncertainty in the modelling.
+The distributions above are a good reminder that uncertainty in the real world isn't all about normal distributions; in particular their bimodal nature indicates that an analysis based on a single point estimate for each athlete is bound to gloss over this structural nuance - further justifying the need to account for uncertainty in the modelling.
 
-If my original Bradley-Terry model was in the frequentist framework, I would have single parameter estimates and confidence intervals for those values. But confidence intervals do not imply distributions, so we cannot sample from them, and so its not clear how to get uncertainty intervals for the gold medal probability.
+This is one of the main benefits of fitting a Bayesian model - If my Bradley-Terry model was in the frequentist framework, I would have single parameter estimates for the athlete strenghts and confidence intervals for those values. Unlike Bayesian posteriors, frequentist confidence intervals don't imply distributions, so it isn't possible to sample from them. Ultimately this means its not clear how to derive uncertainty intervals for the gold medal probability.
 
 <aside>Short of writing a likelihood that encapsulates both the Bradley-Terry model and the tournament dynamic - but that is daunting, if doable at all.</aside>
 
@@ -295,24 +296,31 @@ Fortunately there's pre-existing literature on betting strategies that I can dra
 
 ### Betting Strategy for Single Bets
 
-To set-up the theory, lets consider a simple scenario: suppose I'm offered odds $O$ to play a game for which we know ahead of time that we have probability of winning is $p$. If I have a total budget $B$ that I'm willing to invest in gambling, then how much of this should I be willing to bet?
+To set-up the theory, I'll consider a simplified scenario with just two outcomes.
 
-If I'm only ever going to place a single bet, intuition would suggest that I should either bet my entire gambling budget (if I think the odds are favourable), or I should refrain from betting entirely.
+Suppose I'm offered odds $O$ to play a game for which I know ahead of time that the probability of winning is $p$. If I have a starting budget $W^{(0)}$ that I'm willing to invest in gambling, then what fraction $f$ of this should I be willing to bet?
 
-This aligns to the strategy in which I choose to invest the fraction $f$ of my total wealth that maximises the expected wealth after the bet. To see this, if I bet $0 \leq f \leq 1$ of my wealth the expected return is
+If I'm only ever going to place a single bet, intuition would suggest that I should either bet my entire budget, $f = 1$, (if I think the odds are favourable), or I should refrain from betting entirely, $f = 0$.
 
-$$\underbrace{(1-p) \times (1-f)B}_{\text{I lose the bet}} + \underbrace{p \times (B + fBO)}_{\text{I win}} = (1-f)B + fBp(1+O)
+This aligns to the strategy in which my aim is to maximise my expected return. To see this, my expected wealth after betting $0 \leq f \leq 1$ of my budget is
+
+$$
+\begin{align}
+\mathbf E \left[ W^{(1)} \right ] & = \underbrace{(1-p) \times (1-f)W^{(0)}}_{\text{I lose the bet}} + \underbrace{p \times (W^{(0)} + fW^{(0)}O)}_{\text{I win}} \\
+\\
+& = (1-f)W^{(0)} + fW^{(0)}p(1+O)
+\end{align}
 $$
 
 Since the formula is linear in $f$ the maximum will be achieved at one of $f = 0$ (if the derivative, in $f$, of the expression above is negative) or $f = 1$ (if its positive). Calculating the derivative we find that the strategy that maximises expected wealth is:
 
-$$\text{If $p > (1+O)^{-1}$ bet the full budget $B$ ($f = 1$), otherwise do not bet ($f = 0$).}$$
+$$\text{If $p > (1+O)^{-1}$ bet the full budget ($f = 1$), otherwise do not bet ($f = 0$).}$$
 
 Now suppose however that I intend to place more than one bet, and moreover that I'm willing to reinvest my previous winnings into future bets: is it still wise that so long as the odds are favourable, I should bet my entire budget each time?
 
 Proceeding as above, one can show that the expected wealth after playing $n$ games (or until I go bust, whichever happens first) is still maximised by betting my full budget, including reinvestment, and this has an expected return of
 
-$$\big\{pB(1+O)\big\}^n.$$
+$$\mathbf E \big[ W^{(n)} \big] = \left\{pW^{(0)}(1+O)\right\}^n.$$
 
 Since this tends to infinity with $n$, it would suggest that not only should I bet my entire budget each time I win, but I should be willing to keep playing for arbitrarily long.
 
@@ -321,7 +329,7 @@ But that strategy is absurd: eventually I am guaranteed to lose one of the bets,
 <aside> This is similar to the [St. Petersburg paradox](https://en.wikipedia.org/wiki/St._Petersburg_paradox).</aside>
 
 
-This is demonstrated in the example below where I've simulated the outcome of 1,000 independent gamblers with a starting budget $B = 1$, using this strategy to play a game with probability $p = 2/3$ of winning, offered at odds of 2 - 1, $O = 2$, (so that the expected return from a single game is 2). For the simulation I've run to a maximum of 20 games.
+This is demonstrated in the example below where I've simulated the outcome of 1,000 independent gamblers with a starting budget $W^{(0)} = 1$, using this strategy to play a game with probability $p = 2/3$ of winning, offered at odds of 2 - 1, $O = 2$, (so that the expected return from a single game is 2). For the simulation I've run to a maximum of 20 games.
 
 ```{r}
 set.seed(1414214)
@@ -370,7 +378,7 @@ game_samples <- bind_rows(game_samples, add_zeros)
 # plot game outcomes
 p_max_exp_wealth <- ggplot(game_samples) + geom_line(aes(game, log10(budget), group = sample), alpha = 0.05) +
   scale_y_continuous(breaks = seq(0,9,by=3), labels = scales::math_format(10^.x)) +
-  xlab("Game") + ylab("Accrued Wealth")
+  xlab("Game") + ylab("Expected Wealth")
 
 p_max_exp_wealth
 ```
@@ -381,23 +389,32 @@ The message to take away is that maximising expected wealth is not a sensible st
 
 ### The Kelly Criterion (for Binary Outcomes)
 
-The optimal strategy for the scenario of repeated bets with reinvestment was identified by John Kelly in 1956; the [original paper](https://www.princeton.edu/~wbialek/rome/refs/kelly_56.pdf) is relatively accessible and provides a detailed derivation of the result, so I'll stick to a summary.
+The optimal strategy for the scenario of repeated bets with reinvestment was identified by John Kelly in 1956; the [original paper](https://www.princeton.edu/~wbialek/rome/refs/kelly_56.pdf) is relatively accessible reading.
 
-The key observation of Kelly is that rather than looking to maximise expected wealth, instead we should aim to maximise expected *log* wealth, which after a single game is
+Kelly's observation is that rather than trying to maximise expected wealth, we should aim to maximise the growth rate of wealth. Typically average growth rate is defined by the geometric mean:
 
+$$\left( \frac{W^{(1)}}{W^{(0)}} \frac{W^{(2)}}{W^{(1)}} \cdots \frac{W^{(n)}}{W^{(n-1)}} \right)^{\frac1n} = \left(\frac{W^{(n)}}{W^{(0)}}\right)^{\frac1n}$$
+This in turn can be simplified by noting that the maximum of this expression will be achieved by the same value $f$ as maximising the logarithm
+
+$$ \log \left(\frac{W^{(n)}}{W^{(0)}}\right)^{\frac1n} = \frac1n \log W^{(n)} - \frac1nW^{(0)},$$
+and further we can drop the last term and the multiplication by $\frac1n$ as they're both constant. So that means that the strategy $f$ that maximises expected growth rate is the same as the strategy that maximises log wealth.
+
+The formula for log wealth after a single game is
 $$
 \begin{align}
-(1-p) \log((1-f)B) + & p \log( B + fBO) = \\ & \log(B) + (1-p)\log(1-f) + p\log(1 + fO)
-\end{align}$$
+\mathbf E \left[ \log W^{(1)} \right] &= (1-p) \log\left((1-f)W^{(0)}\right) + p \log\left( W^{(0)} + fW^{(0)}O\right)  \\
+& = \log\left(W^{(0)}\right) + (1-p)\log\left(1-f\right) + p\log\left(1 + fO\right)
+\end{align}
+$$
 
-The plot below shows how the log expected wealth varies as we change the fraction of wealth invested, $f$, assuming the same parameter values in the simulation above: $B = 1,\, p = 2/3, \, O = 2$. 
+The plot below shows how expected log wealth varies as we change the fraction of wealth invested, $f$, assuming the same parameter values in the simulation above: $W^{(0)} = 1,\, p = 2/3, \, O = 2$. 
 
 ```{r}
 ggplot(tibble(f=c(0,0.99), y = c(-1,1)), aes(f,y)) +
   stat_function(aes(f), fun = function(f) 1/3 *log(1-f) + 2/3 * log(1 + 2*f), color = infreq_palette["darkblue"]) +
   # maximum achieved at f = 1/2
   geom_segment(x = 0.5, xend = 0.5, y = -1, yend= 1/3 *log(1/2) + 2/3 * log(2), color = infreq_palette["orange"], linetype = "dashed") +
-  xlab("Fraction of Wealth Gambled") + ylab("Expected Log Return")
+  xlab("Fraction of Wealth Gambled") + ylab("Expected Log Wealth")
 ```
 
 For this particular set of parameters the maximum is achieved at $f = \frac12$, so the Kelly bet would be to always bet half of your current budget in the next round. More generally, the equation above can be solved by hand, and the optimal bet is given by 
@@ -449,7 +466,7 @@ p_kelly <- p_max_exp_wealth +
 p_kelly
 ```
 
-We previously saw that `r game_samples %>% filter(game == 20) %>% filter(budget > 0) %>% nrow` of the gamblers maximising expected wealth had any money at the end of 20 games, whereas `r game_samples %>% filter(game == 20) %>% filter(budget > 1) %>% nrow` of the 1,000 gamblers employing the Kelly strategy had increased their budget by the end of 20 games.
+We previously saw that `r game_samples %>% filter(game == 20) %>% filter(budget > 0) %>% nrow` of the gamblers maximising expected wealth had any money at the end of 20 games, whereas `r game_kelly_samples %>% filter(game == 20) %>% filter(budget > 1) %>% nrow` of the 1,000 gamblers employing the Kelly strategy had increased their budget by the end of 20 games.
 
 Kelly's result is that using this strategy is guaranteed in the limit (i.e. if you were to have infinitely many opportunities to play the game) to lead to higher wealth than any other betting strategy.
 
@@ -459,9 +476,9 @@ Its worth noting of course that there are two major assumptions in the theoretic
 
 * the gambler knows the true probability of winning the game.
 
-A practical way of resolving both of these limitations, which Wikipedia [assures me](https://en.wikipedia.org/wiki/Kelly_criterion#Criticism) is common practice in financial portfolio optimisation, is to play a more conservative strategy: betting a fixed fraction of the proposed Kelly strategy to account for further volatility.
+Whilst the theoretical Kelly strategy optimises risk and reward - the limitations above mean that in the real world it is actually more aggressive than is perhaps appropriate. A common way to bet with more caution is to use a *fractional Kelly strategy*: betting say half the proposed Kelly strategy.
 
-In my Bayesian setting I'll be able to account for the second issue by optimising the Kelly criterion over the draws from my posterior distributions.
+I'll look at a Bayesian way to introduce caution at the end of the post.
 
 ### Allowing for Spread Betting
 
@@ -473,15 +490,15 @@ For now I'll consider a single one of the two events, let's say the Men's, and s
 
 <aside>How to account for the Bayesian uncertainty is the content of the next section.</aside>
 
-Extending the notation from before, I'll suppose I've found a bookmaker (or even a number of independent bookmakers) willing to offer odds $O_r$ on rider $r$. Given a total budget $B$, what fraction $f_r$ of this should I invest in rider $r$?
+Extending the notation from before, I'll suppose I've found a bookmaker (or even a number of independent bookmakers) willing to offer odds $O_r$ on rider $r$. Given a starting budget $W^{(0)}$, what fraction $f_r$ of this should I invest in rider $r$?
 
-Applying the heuristic of Kelly's criterion, I'll aim to maximise my log wealth, which in the multi-outcome scenario is given by:
+Applying the heuristic of Kelly's criterion, I'll aim to maximise my log wealth, which after a single game in the multi-outcome scenario is given by:
 
 $$
 \begin{align}
-\sum_{r = 1}^R \, p_r \, \times \, & \log \big(\underbrace{B(1-F)}_{\text{Not gambled}} + \underbrace{ Bf_rO_r}_{\text{r wins}}\big) = \\
+\mathbf E \left[ \log W^{(1)} \right] & = \sum_{r = 1}^R \, p_r \, \times \, \log \bigg(\underbrace{W^{(0)}(1-F)}_{\text{Not gambled}} + \underbrace{ W^{(0)}f_rO_r}_{\text{r wins}}\bigg) \\
 \\
-&  \qquad \log(B) + \sum_{r = 1}^R  p_r \log(1 - F + f_rO_r)
+&=  \log W^{(0)} + \sum_{r = 1}^R  p_r \log(1 - F + f_rO_r)
 \end{align}
 $$
 
@@ -564,9 +581,9 @@ Looking at the output above, the algorithm ran for a total of `solve[["iteration
 
 </details>
 
-Returning to the cycling model, we're now in a position to optimise a betting strategy based on a fixed point estimate of the winning probabilities. For this I'll use the posterior mean winning probabilities returned from the Bayesian model run with historic data, and prior to the qualifying round at Tokyo 2020.
+Returning to the cycling model, we're now in a position to optimise a betting strategy based on a fixed point estimate of the winning probabilities. For this I'll use the posterior mean winning probabilities returned from the Bayesian model run with historic data, and prior to the qualifying round at Tokyo 2020. I'm using the means as unlike the posterior mode (MAP) or median, these have the property that summing over the means of all riders returns 1, so they define a proper probability distribution.
 
-Odds were available to bet at Unibet.com, and for this analysis I'm using the odds that I was offered on 3rd August 2020 - the day before the qualifying round for the Men's event.
+Odds were available at Unibet.com, and for this analysis I'm using the odds offered on 3rd August 2020 - the day before the qualifying round for the Men's event.
 
 The plot below shows my point estimates of the athlete's winning probabilities, against the odds on offer; the curve denotes the boundary at which betting on the rider is expected to have a positive return, and our intuition would say that any betting strategy should avoid placing money on athletes who are below this line.
 
@@ -654,33 +671,303 @@ Interestingly the solution is proposing that I should bet on Harrie Lavreysen, e
 
 Earlier in the post we saw that the point estimates for each athlete's probability of winning are a somewhat unsatisfactory summary of the underlying distributions which are bi-model.
 
-The plot below replicates the comparison between winning probabilities, and bookies odds: but now shows posterior 80% credible intervals against each athlete. For clarity I've only included those athletes who are have a positive expected return in at least 10% of the posterior draws.
+The plot below replicates the above - but replacing the single point estimate with all the draws from the posterior. For clarity I'm only showing the four riders with the highest posterior mean.
+
 
 ```{r}
-bayes_gold_probs_80 <- bayes_gold_probs %>% left_join(odds) %>%
-  group_by(rider,fractional_odds, odds) %>%
-  summarise(
-    gold_lwr_80 = quantile(gold_prob, 0.1),
-    gold_median = quantile(gold_prob, 0.5),
-    gold_upr_80 = quantile(gold_prob, 0.9)
-  ) %>%
-  # only include athletes who have a >10% chance of a positive return.
-  filter(gold_upr_80 > odds^(-1)) %>%
-  mutate(
-    annotate = str_extract(rider, "^([^ ])+")
-  )
+bayes_gold_probs <- bayes_gold_probs %>% left_join(odds) %>%
+  mutate(annotate = str_extract(rider, "^([^ ])+"))
 
-ggplot(bayes_gold_probs_80) +
-  geom_segment(aes(x = gold_lwr_80, xend = gold_upr_80, y = fractional_odds, yend = fractional_odds), color = infreq_palette["orange"]) +
-  geom_text(aes(x = gold_upr_80, y= fractional_odds, label = annotate), hjust = -0.1,color = infreq_palette["darkblue"]) +
-  stat_function(data = tibble(p = c(0.05,1)), aes(p), fun = function(p) 1/p -1, color = infreq_palette["darkblue"], linetype = "dashed") +
+top_4 <- bayes_gold_probs %>% filter(rank <= 4)
+
+ggplot(top_4) + 
+  # decision boundary
+  stat_function(
+    data = tibble(p = c(0.05,1)), aes(p),
+    fun = function(p) 1/p -1, color = infreq_palette["darkblue"], linetype = "dashed"
+  ) +
+  # posterior draws
+  geom_point(aes(x=gold_prob, y= fractional_odds), alpha = 0.2) +
+  # posterior mean
+  geom_point(
+    data = distinct(top_4, rider, fractional_odds, mean_gold_prob),
+    aes(x = mean_gold_prob, y= fractional_odds), size = 5,
+    color = infreq_palette["darkblue"],
+    fill=infreq_palette["orange"],pch=21
+  ) +
+  # rider annotation
+  geom_text(
+    data = distinct(top_4, rider, fractional_odds, annotate),
+    aes(x = 1, y= fractional_odds, label = annotate),
+    vjust=-0.5,hjust=1,color = infreq_palette["darkblue"]
+  ) +
   scale_x_continuous(breaks = seq(0,1,by = 0.2)) +
-  coord_cartesian(xlim = c(0,1.2), ylim = c(0,25)) +
+  coord_cartesian(xlim = c(0,1), ylim = c(0,25)) +
   xlab("Posterior Gold Probability") +
   ylab("Odds Offered")
 ```
 
+<aside>The data displayed is the same as in the posterior histograms shown previously.</aside> 
+
+All four riders have a non-negligible proportion of their density above the break-even boundary, suggesting that we should be open to considering bets on any of them.
+
+We can calculate the expected log wealth taking into account our Bayesian uncertainty by integrating the previous expression for the expected log wealth (for a fixed set of probabilities) over the posterior distribution. In computational terms this is none other than averaging the expected log wealth of a particular strategy over all the draws from the posterior.
+
+<aside>Denoting $\pi(\underline p)$ for the posterior distribution, the expected log wealth is $$ \mathbf E[\log(W)] = \qquad \qquad \\ \int \mathbf E_{\underline p}[\log(W) ]  \pi(d \underline p).$$</aside>
+
+Letting $p_r^{(d)}$ be the gold medal probability for rider $r$ in draw $d$, $d=1,\ldots, D$, then we are looking to solve the optimisation problem:
+
+$$
+\begin{aligned}
+& \text{maximize}
+& &  D^{-1} \textstyle{\sum_{d=1}^D \, \, \sum_{r=1}^R} \, \, \, p_r^{(d)} \, \,\log (1 - F + f_rO_r) \\
+& \text{subject to}
+& &   f_r \geq 0,  \,\qquad 1 \leq r \leq R \\
+& & & \textstyle{\sum_{r=1}^R} f_r = F \leq 1 
+\end{aligned}
+$$
+
+
+
+```{r,message= FALSE, warning = FALSE,results='hide'}
+bayesian_strategy <- optimise_kelly_bayes(odds, bayes_gold_probs)
+
+bayesian_strategy <- bayesian_strategy %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2)) %>%
+  select(rider, fractional_odds, mean_gold_prob, kelly_stakes)
+```
+
+```{r, echo = FALSE}
+bayesian_strategy %>%
+  filter(kelly_stakes > 0) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds,
+    `Modelled Gold Prob.` = mean_gold_prob, `Stake` = kelly_stakes
+  ) %>%
+  kable("pipe", digits = 2)
+```
+
+Taking into account our uncertainty in the probabilities has resulted in exactly the same proposed betting strategy as the simpler optimisation using only the posterior means!
+
+There are of course three potential reasons we've arrived at this result: by chance, because of a bug in the code, or because of maths!
+
+I'll admit when I first saw this, I instantly assumed I had a bug - but in fact its easy to see that this is purely down to the maths; rearranging the objective function above:
+
+$$
+\begin{align}
+D^{-1} {\sum_{d=1}^D \, \, \sum_{r=1}^R} \, \, \, p_r^{(d)} \, \,\log (1 - F + f_rO_r)  & = \sum_{r=1}^r \log(1 - F + f_rO_r)  \left\{ \frac1D \sum_{d} p_r^{(d)} \right\}
+\\ & =  \sum_{r=1}^r \log(1 - F + f_rO_r) \overline p_r
+\end{align}
+$$
+<aside>The same holds in the analytical setting on replacing sums over draws with integrating over the posterior distribution.</aside>
+
+where $\overline p_r$ is the posterior mean that we used in the point optimisation above, and so the two objective functions are equivalent.
+
+For full disclosure - I only noticed this equivalence when writing up this detailed post, which was after placing my bets for Tokyo 2020. Of course had I realised before, I could have implemented the optimisation function in a simpler way.
+
+This cancelation is possible because the objective function is linear in the probabilities $p_r^{(d)}$; more generally whenever we want to maximise a linear objective over Bayesian uncertainty we can rely on this trick of using the posterior means rather than optimising over the posterior distributions.
+
+But objectives need not be linear, and as a nice example I'll consider a Bayesian way of implementing a more cautious betting strategy.
+
+### A Bayesian Approach to Caution
+
+I previously mentioned that a common way to introduce caution to the Kelly strategy is to bet only a fraction of the proposed wager. In this section I'll look at caution from a Bayesian perspective, and propose a revised Kelly strategy to take this into account.
+
+<aside>As above - for full disclosure, my thinking behind this came about after I'd placed my bets for Tokyo 2020.</aside>
+
+The histogram below depicts my expected wealth from betting using the stakes proposed above, over the different draws from my posterior distribution.
+
+```{r}
+get_expected_wealth_draws <- function(strategy, prob_draws){
+  strategy %>%
+  filter(kelly_stakes > 0) %>%
+  left_join(prob_draws) %>%
+  group_by(.draw) %>%
+  summarise(
+    investment =sum(kelly_stakes),
+    expected_wealth = (1-investment) + sum( gold_prob * kelly_stakes * (1+fractional_odds)),
+    expected_log_wealth = sum( gold_prob * log((1-investment) + kelly_stakes * (1+fractional_odds))) 
+  )
+}
+
+point_estimate_expected_wealth_draws <- get_expected_wealth_draws(point_estimate_strategy, bayes_gold_probs)
+
+ggplot(point_estimate_expected_wealth_draws) +
+  geom_histogram(aes(expected_wealth), binwidth = 0.05, color = infreq_palette["beige"]) +
+  geom_vline(xintercept = 1,  color = infreq_palette["darkblue"], linetype = "dashed") +
+  xlab("Expected Wealth") +
+  expand_limits(x=0) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+  )
+```
+
+The posterior median is `r median(point_estimate_expected_wealth_draws$expected_wealth) %>% round(2)`, meaning that even though I've chosen the optimal strategy to maximise wealth in the long run, I should still be going into this bet expecting to lose! This feels a bit surprising, but on reflection it isn't: the strategy is putting money on Matthew Glaetzer because it expects him to win (the point estimate puts him winning at `r most_probable %>% filter(rider == 'GLAETZER MATTHEW') %>% select(mean_gold_prob) %>% round(2)`), but because the odds are favourable.
+
+Overall the histogram shows that the strategy is being driven by the long tail - which indicates that its a high variance strategy. The variance can be thought of as describing the risk in the strategy. For instance if I decide not to bet at all, my expected wealth will be my initial budget, and since I'm not betting I know I'll get this return - so the variance is 0.
+
+My idea then is to add a term to my existing utility function that prefers strategies that are lower variance:
+
+$$\mathbf E \bigg[\log W^{(1)}\bigg] - \lambda \text{Var}\bigg(\log W^{(1)}\bigg)$$
+
+The parameter $\lambda \geq 0$ is to be chosen by the individual bettor: if $\lambda = 0$ this is the usual Kelly strategy and there is no risk aversion, as $\lambda \rightarrow \infty$ the objective function is focused on minimising variance and so will settle on placing no bets at all.
+
+The variance above is the variance under the Monte-Carlo uncertainty - i.e. for a fixed set of winning probabilities $p_r$ - so I can still fit this model using the point estimate probabilities. There are two ways to lower this: to place bets on outcomes that are more likely to happen (but which will no doubt have less favourable odds) or to place fewer/lower value bets.
+
+Optimising the cautious strategy with $\lambda = 1$ and using the point estimates for the winning probabilities returns the following revised strategy
+
+```{r,results='hide'}
+point_estimate_strategy_var1 <-
+  optimise_kelly_bayes(
+    odds, point_estimate_probs,
+    function(stake,fractional_odds, prob_mat){kelly_var_evaluation(stake,fractional_odds, prob_mat, lambda = 1)}
+  ) %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2))
+```
+
+```{r, echo = FALSE}
+point_estimate_strategy_var1 %>%
+  filter(kelly_stakes > 5e-3) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds,
+    `Modelled Gold Prob.` = mean_gold_prob, `Stake` = kelly_stakes
+  ) %>%
+  kable("pipe", digits = 2)
+```
+
+This revised strategy is much more cautious: investing only `r sum(point_estimate_strategy_var1$kelly_stakes) %>% round(2)` of the budget as opposed to the original `r sum(point_estimate_strategy$kelly_stakes) %>% round(2)`. Further - this is now rebalanced with proportionally more of the investment being placed on Harrie Lavreysen than before.
+
+The histogram below compares the posterior distribution for expected wealth from the two strategies, confirming that the variance is now much tighter than the Kelly Strategy.
+
+```{r}
+point_estimate_var1_expected_wealth_draws <- get_expected_wealth_draws(point_estimate_strategy_var1, bayes_gold_probs)
+
+wealth_draws <- bind_rows(
+  point_estimate_expected_wealth_draws %>% add_column(strategy = 'Kelly'),
+  point_estimate_var1_expected_wealth_draws %>% add_column(strategy = 'Conservative, λ = 1')
+)
+
+ggplot(wealth_draws) +
+  geom_histogram(aes(expected_wealth), binwidth = 0.05, color = infreq_palette["beige"]) +
+  geom_vline(xintercept = 1,  color = infreq_palette["darkblue"], linetype = "dashed") +
+  geom_text(data = distinct(wealth_draws, strategy),aes(x = 0, y = 20, hjust=0, label = strategy)) +
+  facet_grid(rows = vars(strategy)) +
+  xlab("Expected Wealth") +
+  expand_limits(x=0) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    strip.text = element_blank(),
+
+    strip.background = element_rect(color=infreq_palette["beige"], fill=infreq_palette["beige"]),
+    strip.placement = "outside"
+  )
+```
+
+The optimisation above was conducted using the posterior mean winning probabilities - but to optimise under uncertainty we should perform the optimisation as described in the previous section: averaging over all draws from the posterior distribution. Whereas before the linearity of the utility function meant that the two problems were equivalent, the addition of the variance breaks this linearity.
+
+Optimising the cautious strategy with $\lambda = 1$ over all posterior draws proposes the following strategy:
+
+
+```{r,results='hide'}
+bayesian_strategy_var1 <-
+  optimise_kelly_bayes(
+    odds, bayes_gold_probs,
+    function(stake,fractional_odds, prob_mat){kelly_var_evaluation(stake,fractional_odds, prob_mat, lambda =0.1)}
+  ) %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2))
+```
+
+
+```{r, echo = FALSE}
+bayesian_strategy_var1 %>%
+  filter(kelly_stakes > 5e-3) %>%
+  select(
+    `Athlete` = rider, `Odds` = fractional_odds,
+    `Modelled Gold Prob.` = mean_gold_prob, `Stake` = kelly_stakes
+  ) %>%
+  kable("pipe", digits = 2)
+```
+
+Although this used the same level of caution, $\lambda = 1$, as for the point estimate model, the proposed strategy is much more willing to bet - and barely deviates from the original Kelly strategy.
+
+I've not fully grasped this behaviour, but my intuition is that the point estimate under values the fact that Matthew Glaetzer actually has a lot of probability mass on scenarios where he is likely to win.
+
+The plot below shows how the choice of $\lambda$ affects the expected returns: as anticipated, as $\lambda$ increases we increase our certainty in the return, at the cost of lowering our opportunity. Models fit to the point estimate are more senstive to $\lambda$ than those fit to the full posterior distribution.
+
+```{r,results='hide'}
+lambda <- seq(0,5,by=0.5)
+
+lambda_point_estimate <- map(lambda, .f = function(lambda){
+  
+  stakes <- 
+    optimise_kelly_bayes(
+    odds, point_estimate_probs,
+    function(stake,fractional_odds, prob_mat){kelly_var_evaluation(stake,fractional_odds, prob_mat, lambda = lambda)}
+  ) %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2)) %>%
+  select(rider, kelly_stakes)
+  
+  wealth_draws <- get_expected_wealth_draws(stakes, bayes_gold_probs)
+  
+  wealth_draws_summ <- wealth_draws %>%
+    summarise(
+      method = 'Posterior Mean',
+      lambda = lambda + 0.05,
+      q05 = quantile(expected_wealth, 0.05),
+      mean = mean(expected_wealth),
+      q95 = quantile(expected_wealth, 0.95)
+    )
+}) %>% bind_rows()
+
+lambda_bayes_estimate <- map(lambda, .f = function(lambda){
+  
+  stakes <- 
+    optimise_kelly_bayes(
+    odds, bayes_gold_probs,
+    function(stake,fractional_odds, prob_mat){kelly_var_evaluation(stake,fractional_odds, prob_mat, lambda = lambda)}
+  ) %>%
+  mutate(kelly_stakes = round(kelly_stakes, 2)) %>%
+  select(rider, kelly_stakes)
+  
+  wealth_draws <- get_expected_wealth_draws(stakes, bayes_gold_probs)
+  
+  wealth_draws_summ <- wealth_draws %>%
+    summarise(
+      method = 'Full Posterior',
+      lambda = lambda - 0.05,
+      q05 = quantile(expected_wealth, 0.05),
+      mean = mean(expected_wealth),
+      q95 = quantile(expected_wealth, 0.95)
+    )
+}) %>% bind_rows()
+
+lambda_summary <- bind_rows(lambda_point_estimate, lambda_bayes_estimate) %>%
+  mutate(method = factor(method, levels= c ('Full Posterior','Posterior Mean')))
+
+ggplot(lambda_summary) +
+  geom_point(aes(x=lambda, y = mean,color = method), size = 2) +
+  geom_errorbar(aes(x=lambda , ymin = q05, ymax = q95, color=method),width = 0.1) +
+  geom_hline(yintercept = 1, color = infreq_palette["darkblue"], linetype = "dashed", alpha = 0.5) +
+  ylab("Expected Wealth") +
+  xlab("λ") +
+  theme(legend.title = element_blank())
+```
+
 ## Betting Log
+
+The log below reproduces the content from a holding post that I was updating whilst the events in the velodrome were running (I hadn't had time to draft the full post before events started).
+
+To avoid any spoilers for anyone who feels like re-watching the track events at Tokyo I'll refrain from sharing how the model faired for now, and include that in a final wrap-up post.
+
+One point of note was my realisation late in the day (see my entry against the Women's Post Qualifying bets below) that I hadn't really thought through the fact that within each gender my bets were going to be dependent. I'll touch on this in more detail in the wrap-up.
+
+### Budget and Strategy Summary
 
 In total I allowed myself a budget of £20 - not exactly betting big, but also a non-negligible amount which will give me the flexibility to make a number of bets.
 
@@ -692,25 +979,31 @@ For each of the men's and women's events I bet three times:
 
 * Prior to the semi-finals - re-training the model to include the now observed preliminary rounds.
 
-At each stage I used the Kelly Criterion to set my stakes; to avoid blowing my budget early I capped my expenditure in earlier rounds at 1/6 of the total budget (£3.40).
+At the point of the competition I had not thought about the conservative strategy above, so all bets were made using the spread-bet Kelly strategy. To account for caution, and so as to avoid blowing all my budget on the very first bet, I initially capped my bet at 1/6 of the total (£3.40).
+
 
 ::::: {.panelset}
 
 ::: {.panel}
 [Men]{.panel-name}
 
-### Pre-Qualifying
+### Pre-Qualifying (4th August 2021)
 
 ```{r, echo = FALSE}
 stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PreQualifying.csv")
 ```
 
+The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
+
+Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
+
 ```{r stakes-table, echo = FALSE}
 stakes %>%
   filter(capped_kelly_stakes > 0) %>%
+  arrange(desc(capped_kelly_stakes)) %>%
   select(
     `Athlete` = rider, `Odds` = fractional_odds, `Stake` = capped_kelly_stakes,
-    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+    `Modelled Gold Prob.` = gold_prob
   ) %>%
   kable("pipe", digits = 2)
 ```
@@ -728,15 +1021,13 @@ stakes %>%
 ```
 </details>
 
-<details>
-<summary>Notes</summary>
-The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
+### Post Qualifying (4th August 2021)
 
-Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
-</details>
+Unfortunately, once the start list was published this morning it transpired that Matthew Glaetzer pulled out of competition meaning that I'm already £2.40 down, and have some catching-up to do.
 
-### Post Qualifying
+<aside>At no fault of the model - rather my not checking for revised start lists!</aside>
 
+These bets were placed ahead of the 1/32 finals. I maintained the cap of £3.40 used in the first round.
 
 ```{r,echo = FALSE}
 stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifying.csv")
@@ -751,20 +1042,14 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-04-Men-PostQualifyi
 ```
 </details>
 
-<details>
-<summary>Notes</summary>
-These bets were placed ahead of the 1/32 finals; at this point 24 athlete's remained in the competition.
-
-Unfortunately at this point I'm already down £2.40 - Matthew Glaetzer was substituted out at the last minute, so is not competing.
-
-I maintained the cap of £3.40 used in the first round.
-</details>
-
-### Post Quarterfinals
+### Post Quarterfinals (5th August 2021)
 
 ```{r,echo = FALSE}
 stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Men-PostQuarterfinals.csv")
 ```
+These bets were placed following the quarterfinals, with only four riders left competing. At this point the model is very stable and is predicting almost identical win probabilities for the leading athletes as it did in my previous round of bets.
+
+In an effort to catch-up on the early loss on Glaetzer I'm going to lift my cap to £6, putting my total investment in the Men's event at £12.70.
 
 ```{r, stakes-table, echo = FALSE}
 ```
@@ -775,26 +1060,19 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Men-PostQuarterf
 ```
 </details>
 
-
-<details>
-<summary>Notes</summary>
-These bets were placed following the quarterfinals, the day ahead of the semi-finals taking place.
-
-At this point the model is very stable and is predicting almost identical win probabilities for the leading athletes.
-
-In an effort to catch-up on the early loss on Glaetzer I'm going to lift my cap to £6.
-</details>
 :::
 
 ::: {.panel}
 [Women]{.panel-name}
 
 
-### Pre-Qualifying
+### Pre-Qualifying (5th August 2021)
 
 ```{r, echo = FALSE}
 stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Women-PreQualifying.csv")
 ```
+
+As with the Men's event for this run I have fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
 
 ```{r, stakes-table, echo = FALSE}
 ```
@@ -805,14 +1083,13 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-05-Women-PreQualify
 ```
 </details>
 
-<details>
-<summary>Notes</summary>
-The idea of betting at this point is that hopefully the bookies odds are naive, as they won't have adjusted for qualifying times. We saw in the [previous post](https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/) qualifying data is highly predictive of match results.
 
-Since qualifying times are not available I've fitted the model assuming all riders have the same qualifying time, and seeded them for matches in order of strength.
+### Post Qualifying (6th August 2021)
+
+Now that the Men's event is finished (no spoilers here - checkout wikipedia, or wait until the last post in the series where I'll summarise my performance) I'm going to lift my cap to £6.70.
+
+Lee Wai Sze doesn't appear to be on top form based on her results in the Keirin, and the qualifying round for the sprint. As a result I've decided to manually drop her strength by 1 across all posterior samples as I believe the model is over estimating on historic performance.
 </details>
-
-### Post Qualifying
 
 ```{r, echo = FALSE}
 stakes <- read_csv("../../../track-cycling/data/bets/2020-08-06-Women-PostQualifying.csv")
@@ -828,13 +1105,32 @@ stakes <- read_csv("../../../track-cycling/data/bets/2020-08-06-Women-PostQualif
 </details>
 
 
+### Post Quarterfinals (7th August 2021)
+
+
+```{r, echo = FALSE}
+stakes <- read_csv("../../../track-cycling/data/bets/2020-08-07-Women-PostQuarterfinals.csv")
+```
+
+Having run the model with the latest data, I've decided not to add to my bets for the womens event - of the six athletes I bet on in the previous round, four of them have gone through to the semi-finals: but the odds have now shortened.
+
+The model wanted me to back Lee Wai Sze again - however an oversight in my approach is that at the moment all of the bets are being placed independently. I'm fairly confident that a model that properly accounts for the dependence wouldn't recommend I bet again, so I'll over ride the model's decision.
+
+Other than Lee Wai Sze the model only wanted to put a few pennies on two other athletes - so it didn't seem worth it (and again this is in absence of the dependence point above).
+
+The details below have the odds offered, and the stakes that the model wanted me to make.
+
 <details>
-<summary>Notes</summary>
-I've lifted the cap allowing me to bet up to £6.70. I've also decided to manually drop Lee Wai Sze's strength by 1 across all posterior samples as I believe the model is over estimating her strength based on historic performance. This is justified by her results in the Keirin, and the qualifying round for the sprint.
+<summary>All Other Odds</summary>
+```{r echo = FALSE}
+stakes %>%
+ select(
+    `Athlete` = rider, `Odds` = fractional_odds, `Proposed Stake` = capped_kelly_stakes,
+    `Modelled Gold Prob.` = gold_prob, `Expected Return`= expected_return
+  ) %>%
+  kable("pipe", digits = 2)
+```
 </details>
-
-### Post Quarterfinals
-
 :::
 
 :::::
@@ -844,5 +1140,6 @@ I've lifted the cap allowing me to bet up to £6.70. I've also decided to manual
 
 ## Acknowledgments {.appendix}
 
+This post makes heavy use of R and NLOpt, and so benefits from the work of all those who contribute to their development.
 
   
