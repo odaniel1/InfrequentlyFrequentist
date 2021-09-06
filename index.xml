@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>Infrequently Frequentist</title>
+    <link>https://www.infreq.com/</link>
+    <atom:link href="https://www.infreq.com/index.xml" rel="self" type="application/rss+xml"/>
+    <description>Infrequently Frequentist
+</description>
+    <generator>Distill</generator>
+    <lastBuildDate>Tue, 03 Aug 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Tokyo 2020 Betting III: From Matches to Medals... and Bookies</title>
+      <link>https://www.infreq.com/posts/2021-08-03-tokyo-2020-iii</link>
+      <description>In this post I will go from making individual match predictions using the Bradley-Terry model through to predicting the Gold medal winners of the track cycling Individual Sprint, and derive an optimal betting strategy based on a spread-bet Kelly Criterion optimised under posterior uncertainty.</description>
+      <category>Bayesian</category>
+      <category>Optimisation</category>
+      <category>Decision Analysis</category>
+      <category>Cycling</category>
+      <guid>https://www.infreq.com/posts/2021-08-03-tokyo-2020-iii</guid>
+      <pubDate>Tue, 03 Aug 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://www.infreq.com/posts/2021-08-03-tokyo-2020-iii/img/tournament_prev.gif" medium="image" type="image/gif"/>
+    </item>
+    <item>
+      <title>Tokyo 2020 Betting II: Model Refinement and Feature Engineering</title>
+      <link>https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii</link>
+      <description>The second post in a series building towards betting on the Olympic track cycling. This time I'll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance.</description>
+      <category>Bayesian</category>
+      <category>Cycling</category>
+      <category>Gaussian Processes</category>
+      <guid>https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii</guid>
+      <pubDate>Thu, 29 Jul 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/img/best-of-three.png" medium="image" type="image/png" width="1417" height="1181"/>
+    </item>
+    <item>
+      <title>Tokyo 2020 Betting I: Predictive Models for Pairwise Matches</title>
+      <link>https://www.infreq.com/posts/2021-07-23-tokyo-2020-i</link>
+      <description>The first in a series of posts building towards betting on the track cycling at the Tokyo Olympics. This post introduces the series, and the basic model behind my attempt to win big at the bookies!</description>
+      <category>Bayesian</category>
+      <category>Cycling</category>
+      <guid>https://www.infreq.com/posts/2021-07-23-tokyo-2020-i</guid>
+      <pubDate>Fri, 23 Jul 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://www.infreq.com/posts/2021-07-23-tokyo-2020-i/img/strengths_wc20.png" medium="image" type="image/png" width="1653" height="1535"/>
+    </item>
+    <item>
+      <title>A Fully Bayesian Analysis of Broman's Socks</title>
+      <link>https://www.infreq.com/posts/2021-07-09-bromans-socks</link>
+      <description>When Karl Broman tweeted about his laundry he likely didn't imagine that people would still be estimating how many socks he washed 7 years later. In this post my willingness to derive some exact formulae will enable a fully Bayesian, sampling free, approach to laundry quantification.</description>
+      <category>Bayesian</category>
+      <category>Discrete Probability</category>
+      <guid>https://www.infreq.com/posts/2021-07-09-bromans-socks</guid>
+      <pubDate>Fri, 09 Jul 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://www.infreq.com/posts/2021-07-09-bromans-socks/img/socks-posterior.png" medium="image" type="image/png" width="1653" height="1535"/>
+    </item>
+    <item>
+      <title>The Changing Shape of the Tour de France</title>
+      <link>https://www.infreq.com/posts/2021-06-25-tdf-shape-21</link>
+      <description>On the eve of the Grand Départ of the 2021 Tour de France, we'll use animation to quickly draw some insights from the race's history.</description>
+      <category>Visualisation</category>
+      <category>Cycling</category>
+      <guid>https://www.infreq.com/posts/2021-06-25-tdf-shape-21</guid>
+      <pubDate>Fri, 25 Jun 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://www.infreq.com/posts/2021-06-25-tdf-shape-21/img/tdf_shape_1915.gif" medium="image" type="image/gif"/>
+    </item>
+  </channel>
+</rss>

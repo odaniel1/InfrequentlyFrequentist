@@ -3,6 +3,7 @@ title: "Infrequently Frequentist"
 theme: infreq_freq_theme.css
 description: |
   Infrequently Frequentist
+base_url: https://www.infreq.com/
 output_dir: "."
 navbar:
   right:
@@ -12,6 +13,8 @@ navbar:
       href: about.html
     - icon: fab fa-github
       href: https://github.com/odaniel1/InfrequentlyFrequentist
+    - icon: fa fa-rss
+      href: index.xml
 output: 
   distill::distill_article:
     includes:

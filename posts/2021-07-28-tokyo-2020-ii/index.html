@@ -88,6 +88,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 
 <meta property="description" itemprop="description" content="The second post in a series building towards betting on the Olympic track cycling. This time I&#39;ll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance."/>
 
+<link rel="canonical" href="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/"/>
 
 <!--  https://schema.org/Article -->
 <meta property="article:published" itemprop="datePublished" content="2021-07-29"/>
@@ -97,19 +98,27 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta property="og:title" content="Infrequently Frequentist: Tokyo 2020 Betting II: Model Refinement and Feature Engineering"/>
 <meta property="og:type" content="article"/>
 <meta property="og:description" content="The second post in a series building towards betting on the Olympic track cycling. This time I&#39;ll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance."/>
+<meta property="og:url" content="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/"/>
+<meta property="og:image" content="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/img/best-of-three.png"/>
+<meta property="og:image:width" content="1417"/>
+<meta property="og:image:height" content="1181"/>
 <meta property="og:locale" content="en_US"/>
 <meta property="og:site_name" content="Infrequently Frequentist"/>
 
 <!--  https://dev.twitter.com/cards/types/summary -->
-<meta property="twitter:card" content="summary"/>
+<meta property="twitter:card" content="summary_large_image"/>
 <meta property="twitter:title" content="Infrequently Frequentist: Tokyo 2020 Betting II: Model Refinement and Feature Engineering"/>
 <meta property="twitter:description" content="The second post in a series building towards betting on the Olympic track cycling. This time I&#39;ll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance."/>
+<meta property="twitter:url" content="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/"/>
+<meta property="twitter:image" content="https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/img/best-of-three.png"/>
+<meta property="twitter:image:width" content="1417"/>
+<meta property="twitter:image:height" content="1181"/>
 
 <!--/radix_placeholder_meta_tags-->
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
-{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","date","preview","output","categories"]}},"value":[{"type":"character","attributes":{},"value":["Tokyo 2020 Betting II: Model Refinement and Feature Engineering"]},{"type":"character","attributes":{},"value":["The second post in a series building towards betting on the Olympic track cycling. This time I'll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance."]},{"type":"character","attributes":{},"value":["07-29-2021"]},{"type":"character","attributes":{},"value":["img/best-of-three.png"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article","self_contained"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["highlight","toc","toc_depth"]}},"value":[{"type":"character","attributes":{},"value":["/home/od/Documents/R Projects/InfrequentlyFrequentist/infreq.theme"]},{"type":"logical","attributes":{},"value":[true]},{"type":"integer","attributes":{},"value":[2]}]},{"type":"logical","attributes":{},"value":[false]}]},{"type":"character","attributes":{},"value":["Bayesian","Cycling","Gaussian Processes"]}]}
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","date","preview","output","categories","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["Tokyo 2020 Betting II: Model Refinement and Feature Engineering"]},{"type":"character","attributes":{},"value":["The second post in a series building towards betting on the Olympic track cycling. This time I'll adapt the Bradley-Terry model to use a custom likelihood to better capture the competition format, and integrate new data fields to boost model performance."]},{"type":"character","attributes":{},"value":["07-29-2021"]},{"type":"character","attributes":{},"value":["img/best-of-three.png"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article","self_contained"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["highlight","toc","toc_depth"]}},"value":[{"type":"character","attributes":{},"value":["/home/od/Documents/R Projects/InfrequentlyFrequentist/infreq.theme"]},{"type":"logical","attributes":{},"value":[true]},{"type":"integer","attributes":{},"value":[2]}]},{"type":"logical","attributes":{},"value":[false]}]},{"type":"character","attributes":{},"value":["Bayesian","Cycling","Gaussian Processes"]},{"type":"character","attributes":{},"value":["https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/"]},{"type":"character","attributes":{},"value":["https://www.infreq.com/posts/2021-07-28-tokyo-2020-ii/"]}]}
 </script>
 <!--/radix_placeholder_rmarkdown_metadata-->
   
@@ -3857,6 +3866,9 @@ distill-header .nav a {
 <a href="../../about.html">About</a>
 <a href="https://github.com/odaniel1/InfrequentlyFrequentist">
 <i class="fab fa-github" aria-hidden="true"></i>
+</a>
+<a href="../../index.xml">
+<i class="fa fa-rss" aria-hidden="true"></i>
 </a>
 <a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
 </div>
